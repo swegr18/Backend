@@ -8,3 +8,4 @@ psycopg[binary]
 librosa
 numpy
 openai-whisper
+pydub
