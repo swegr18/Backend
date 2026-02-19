@@ -2,7 +2,7 @@ from typing import Optional
 from sqlmodel import Session, select
 from domain.ports import UserRepository
 from infrastructure.persistence.user_model import UserTable
-from uuid import uuid4
+from uuid import uuid4, UUID
 
 
 class PostgresUserRepository(UserRepository):
@@ -31,5 +31,8 @@ class PostgresUserRepository(UserRepository):
 
     def find_by_id(self, user_id: str) -> Optional[UserTable]:
         with Session(self.engine) as session:
+            # Convert string to UUID if needed
+            if isinstance(user_id, str):
+                user_id = UUID(user_id)
             statement = select(UserTable).where(UserTable.id == user_id)
             return session.exec(statement).first()
