@@ -15,6 +15,7 @@ import subprocess
 import librosa
 import numpy as np
 import whisper
+import filler
 
 #audio table initialisation
 class AudioFile(SQLModel, table=True):
@@ -202,7 +203,7 @@ def transcription(path):
         return ""
 
     try:
-        result = model.transcribe(path, fp16=False)
+        result = model.transcribe(path, fp16=False, initial_prompt=" ".join(filler.VOCABLE_FILLERS))
         return (result.get("text"))
     except RuntimeError as e:
         msg = str(e)
@@ -235,6 +236,9 @@ def all_metrics(path):
     frames_per_second = int(len(f0) / librosa.get_duration(y=y, sr=sr))
     chunks = np.array_split(f0, frames_per_second)
     avg_freq_second = [np.mean(chunk) for chunk in chunks]
+
+    # Filler proportion
+    fillerProportion = filler.calculateFillerProportion(text)
     
     #logging
     logger.info("METRICS SHOWN HERE")
@@ -243,6 +247,7 @@ def all_metrics(path):
     logger.info(f"average freq:{avg_freq}")
     logger.info(f"wpm{wpm}")
     logger.info(f"frequencies:{avg_freq_second}")
+    logger.info(f"filler proportion:{fillerProportion}")
     return {"duration":duration,"avg_volume_dbfs":average_db,"avg_pitch_hz":avg_freq,"wpm":wpm}    
     
 # Initialize dependencies (Dependency Injection)
