@@ -1,6 +1,4 @@
 """main module for FastAPI backend"""
-import os
-import subprocess
 
 from typing import Optional
 from uuid import UUID, uuid4
