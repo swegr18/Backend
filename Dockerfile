@@ -1,32 +1,26 @@
-# Use Python 3.11 slim image
+# syntax=docker/dockerfile:1.6
 FROM python:3.11-slim
 
-# Set working directory
 WORKDIR /app
 
-# Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Install system dependencies
+# Install system deps (combine apt into one layer)
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc && \
-    apt-get clean && \
+    apt-get install -y --no-install-recommends gcc ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better caching
+# Copy requirements first (best cache behaviour)
 COPY requirements.txt .
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-RUN apt-get update && apt-get install -y ffmpeg
-# Copy application code
+# Use BuildKit pip cache (DO NOT use --no-cache-dir / PIP_NO_CACHE_DIR)
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r requirements.txt
+
+# Copy app code after deps
 COPY . .
 
-# Expose port
 EXPOSE 8000
-
-# Run the application
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

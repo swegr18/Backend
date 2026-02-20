@@ -20,3 +20,19 @@ class Repository(ABC):
     @abstractmethod
     async def delete(self, entity_id: str) -> bool:
         pass
+
+
+class UserRepository(ABC):
+    """Port for user persistence"""
+
+    @abstractmethod
+    def save_user(self, user: any) -> any:
+        pass
+
+    @abstractmethod
+    def find_by_email(self, email: str) -> Optional[any]:
+        pass
+
+    @abstractmethod
+    def find_by_id(self, user_id: str) -> Optional[any]:
+        pass
