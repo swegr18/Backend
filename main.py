@@ -1,4 +1,6 @@
 """main module for FastAPI backend"""
+import os
+import subprocess
 
 from typing import Optional
 from uuid import UUID, uuid4
@@ -11,17 +13,12 @@ from pydub import AudioSegment
 from fastapi import FastAPI,UploadFile,File,HTTPException,Depends,Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import SQLModel, Field, create_engine, Session,select
->>>>>>> Stashed changes
+
 from infrastructure.config import settings
 from infrastructure.container import container
 from infrastructure.api.routes import health, audio
 from infrastructure.persistence.in_memory_repository import InMemoryRepository
 import logging
-import os
-import subprocess
-import librosa
-import numpy as np
-import whisper
 
 from metrics import calc_wpm_live,all_metrics
 
@@ -69,7 +66,6 @@ app.add_middleware(
 #logger to aid debugging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-model = whisper.load_model("tiny")
 
 # Register routes
 UPLOAD_DIR = "uploads"
