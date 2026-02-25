@@ -14,8 +14,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import SQLModel, Field, create_engine, Session,select
 from infrastructure.config import settings
 from infrastructure.container import container
-from infrastructure.api.routes import health, audio
+from infrastructure.api.routes import health, audio, auth
 from infrastructure.persistence.in_memory_repository import InMemoryRepository
+from infrastructure.persistence.user_repository import PostgresUserRepository 
+from infrastructure.persistence.user_model import UserTable  # noqa: F401 – ensures table is created
 
 from metrics import calc_wpm_live,all_metrics
 
@@ -204,8 +206,10 @@ def _setup_dependencies():
     """Setup dependency injection container"""
     # Register repositories
     container.register("repository", InMemoryRepository())
+    container.register("user_repository", PostgresUserRepository(engine))
 
 _setup_dependencies()
 
 app.include_router(health.router, prefix=settings.api_prefix, tags=["health"])
 app.include_router(audio.router, prefix=settings.api_prefix, tags=["audio"])
+app.include_router(auth.router, prefix=settings.api_prefix, tags=["auth"])
