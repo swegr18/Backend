@@ -2,6 +2,8 @@ import librosa
 import logging
 import filler
 import numpy as np
+import math
+
 from transcribe import transcription
 from pydub import AudioSegment
 
@@ -11,6 +13,11 @@ logger = logging.getLogger(__name__)
 
 #calculate numerical metrics
 def all_metrics(path):
+
+    whisperOutput = transcription(path)
+    text = whisperOutput.get("text")
+
+
     y, sr = librosa.load(path)
     duration = librosa.get_duration(y=y,sr=sr)
     #volume calculations
@@ -33,8 +40,13 @@ def all_metrics(path):
     frames_per_second = int(len(f0) / librosa.get_duration(y=y, sr=sr))
     chunks = np.array_split(f0, frames_per_second)
     avg_freq_second = [np.mean(chunk) for chunk in chunks]
+
     #filler words
     fillerProportion = filler.calculateFillerProportion(text)
+
+    # Proportion of transcribability
+    transcribability = calculateTranscribability(whisperOutput)
+
     #logging
     logger.info("METRICS SHOWN HERE")
     logger.info(f"duration:{duration}")
@@ -43,6 +55,7 @@ def all_metrics(path):
     logger.info(f"wpm{wpm}")
     logger.info(f"frequencies:{avg_freq_second}")
     logger.info(f"filler proportion:{fillerProportion}")
+    logger.info(f"proportion of transcribability:{transcribability}")
     return {"duration":duration,"avg_volume_dbfs":average_db,"avg_pitch_hz":avg_freq,"wpm":wpm}    
     
     
@@ -94,3 +107,18 @@ def calc_wpm_live(session_wpm,session_lock,session_id: str, chunk_index: int, ch
             "running_wpm": st["running_wpm"],
         }
 
+# Calculate proportion of transcribable text (Whisper's confidence in the transcription)
+#
+# Input: Dict returned by model.transcribe()
+# Output: Proportion of transcribable text
+#
+def calculateTranscribability(whisperOutput):
+    segments = whisperOutput.get("segments")
+
+    totalLog = 0
+
+    for seg in segments:
+        totalLog += seg.get("avg_logprob")
+
+    return math.exp(totalLog)
+        

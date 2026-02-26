@@ -3,6 +3,7 @@ import logging
 import whisper
 import filler
 
+
 logging.basicConfig(level = logging.INFO)
 logger = logging.getLogger(__name__)
 model = whisper.load_model("tiny")
@@ -17,7 +18,7 @@ def transcription(path):
 
     try:
         result = model.transcribe(path, fp16=False, initial_prompt=" ".join(filler.VOCABLE_FILLERS))
-        return (result.get("text"))
+        return result
     except RuntimeError as e:
         msg = str(e)
         if "Failed to load audio" in msg:
