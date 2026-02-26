@@ -25,8 +25,7 @@ def all_metrics(path):
     db = librosa.amplitude_to_db(rms, ref=1.0)
     average_db = float(np.mean(db))
     average_db = np.round(average_db,1)
-    #wpm 
-    text=transcription(path)
+    #wpm
     word_count = len(text.split())
     wpm = word_count/(duration/60)
     wpm = np.round(wpm,1)
