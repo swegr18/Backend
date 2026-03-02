@@ -1,9 +1,12 @@
-import librosa
+"""metric calculations"""
+
 import logging
-import filler
 import numpy as np
-from transcribe import transcription
+import librosa
 from pydub import AudioSegment
+import filler
+from transcribe import transcription
+
 
 
 logging.basicConfig(level = logging.INFO)
@@ -11,43 +14,81 @@ logger = logging.getLogger(__name__)
 
 #calculate numerical metrics
 def all_metrics(path):
-    y, sr = librosa.load(path)
-    duration = librosa.get_duration(y=y,sr=sr)
+    """metric calculations for post recording display"""
+    y, sr = librosa.load(path,sr=None)
+    duration = len(y) / sr
+    #trim background noise
+    y, _ = librosa.effects.trim(y)
     #volume calculations
     rms = librosa.feature.rms(y=y)
     db = librosa.amplitude_to_db(rms, ref=1.0)
     average_db = float(np.mean(db))
     average_db = np.round(average_db,1)
-    #wpm 
+    #wpm
     text=transcription(path)
     word_count = len(text.split())
     wpm = word_count/(duration/60)
     wpm = np.round(wpm,1)
-    #pitch calculations and background noise trimming
-    y, _ = librosa.effects.trim(y)
-    y_harmonic, _ = librosa.effects.hpss(y)
-    f0 = librosa.yin(y_harmonic,fmin=80,fmax=400)
-    f0 = f0[~np.isnan(f0)]
-    avg_freq = float(np.mean(f0))
-    avg_freq = np.round(avg_freq,1)
-    frames_per_second = int(len(f0) / librosa.get_duration(y=y, sr=sr))
-    chunks = np.array_split(f0, frames_per_second)
-    avg_freq_second = [np.mean(chunk) for chunk in chunks]
+    #pitch calculations
+    f0 = librosa.yin(y,fmin=80,fmax=400)
+    avg_freq = float(np.round(np.nanmean(f0), 1))
     #filler words
-    fillerProportion = filler.calculateFillerProportion(text)
+    filler_proportion = filler.calculateFillerProportion(text)
     #logging
     logger.info("METRICS SHOWN HERE")
-    logger.info(f"duration:{duration}")
-    logger.info(f"average volume:{average_db}")
-    logger.info(f"average freq:{avg_freq}")
-    logger.info(f"wpm{wpm}")
-    logger.info(f"frequencies:{avg_freq_second}")
-    logger.info(f"filler proportion:{fillerProportion}")
-    return {"duration":duration,"avg_volume_dbfs":average_db,"avg_pitch_hz":avg_freq,"wpm":wpm}    
-    
-    
+    logger.info("duration:%s",duration)
+    logger.info("average volume:%s",average_db)
+    logger.info("average freq:%s",avg_freq)
+    logger.info("wpm:%s",wpm)
+    logger.info("filler proportion:%s",filler_proportion)
+    return {"duration":duration,"avg_volume_dbfs":average_db,"avg_pitch_hz":avg_freq,"wpm":wpm}
+
+def graph_metrics(path):
+    """calculates arrays of data needed for graphs in stats page)"""
+    y, sr = librosa.load(path)
+    y, _ = librosa.effects.trim(y)
+    y_harmonic, _ = librosa.effects.hpss(y)
+
+    hop_length = 512
+    f0 = librosa.yin(y_harmonic, fmin=80, fmax=400, sr=sr, hop_length=hop_length)
+
+    times = librosa.frames_to_time(
+        np.arange(len(f0)), 
+        sr=sr, 
+        hop_length=hop_length
+    )
+
+    valid = ~np.isnan(f0)
+    f0 = f0[valid]
+    times = times[valid]
+
+    seconds = np.floor(times).astype(int)
+
+    avg_freq_second = [
+        float(np.mean(f0[seconds == sec]))
+        for sec in range(seconds.max() + 1)
+    ]
+
+    rms = librosa.feature.rms(y=y, hop_length=hop_length)[0]
+    db = librosa.amplitude_to_db(rms, ref=1.0)
+
+    volume_times = librosa.frames_to_time(
+        np.arange(len(db)),
+        sr=sr,
+        hop_length=hop_length
+    )
+
+    volume_seconds = np.floor(volume_times).astype(int)
+
+    avg_db_second = [
+        float(np.mean(db[volume_seconds == sec]))
+        for sec in range(volume_seconds.max() + 1)
+    ]
+
+    return {"frequencies": avg_freq_second,"volume_db": avg_db_second}
 
 def calc_wpm_live(session_wpm,session_lock,session_id: str, chunk_index: int, chunk_mp3_path: str):
+    """calculates averaged wpm for each session"""
     # chunk duration
     try:
         seg = AudioSegment.from_file(chunk_mp3_path)
@@ -81,7 +122,7 @@ def calc_wpm_live(session_wpm,session_lock,session_id: str, chunk_index: int, ch
         st["last_chunk"] = chunk_index
 
         if st["total_seconds"] > 0:
-            st["running_wpm"] = float(np.round(st["total_words"] / (st["total_seconds"] / 60.0), 2))
+            st["running_wpm"] = float(np.round(st["total_words"] / (st["total_seconds"] / 60.0), 0))
         else:
             st["running_wpm"] = None
 
@@ -93,4 +134,3 @@ def calc_wpm_live(session_wpm,session_lock,session_id: str, chunk_index: int, ch
             "total_seconds": float(np.round(st["total_seconds"], 3)),
             "running_wpm": st["running_wpm"],
         }
-
