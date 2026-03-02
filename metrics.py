@@ -14,8 +14,8 @@ logger = logging.getLogger(__name__)
 #calculate numerical metrics
 def all_metrics(path):
 
-    whisperOutput = transcription(path)
-    text = whisperOutput.get("text")
+    whisper_output = transcription(path)
+    text = whisper_output.get("text")
     y, sr = librosa.load(path)
     duration = librosa.get_duration(y=y,sr=sr)
 
@@ -29,10 +29,10 @@ def all_metrics(path):
     avg_freq, avg_freq_second = calculate_avg_pitch(y, sr)
 
     #filler words
-    fillerProportion = filler.calculateFillerProportion(text)
+    filler_proportion = filler.calculate_filler_proportion(text)
 
     # Proportion of transcribability
-    transcribability = calculateTranscribability(whisperOutput)
+    transcribability = calculate_transcribability(whisper_output)
 
     #logging
     logger.info("METRICS SHOWN HERE")
@@ -41,7 +41,7 @@ def all_metrics(path):
     logger.info(f"average freq:{avg_freq}")
     logger.info(f"wpm{wpm}")
     logger.info(f"frequencies:{avg_freq_second}")
-    logger.info(f"filler proportion:{fillerProportion}")
+    logger.info(f"filler proportion:{filler_proportion}")
     logger.info(f"proportion of transcribability:{transcribability}")
     return {"duration":duration,"avg_volume_dbfs":average_db,"avg_pitch_hz":avg_freq,"wpm":wpm}    
     
@@ -99,8 +99,8 @@ def calc_wpm_live(session_wpm,session_lock,session_id: str, chunk_index: int, ch
 # Input: Dict returned by model.transcribe()
 # Output: Float Proportion of transcribable text
 #
-def calculateTranscribability(whisperOutput):
-    segments = whisperOutput.get("segments")
+def calculate_transcribability(whisper_output):
+    segments = whisper_output.get("segments")
 
     totalLog = 0
 
