@@ -14,18 +14,19 @@ logger = logging.getLogger(__name__)
 
 #calculate numerical metrics
 def all_metrics(path):
-    """metric calculations for post recording display"""
-    y, sr = librosa.load(path,sr=None)
-    duration = len(y) / sr
-    #trim background noise
-    y, _ = librosa.effects.trim(y)
+
+    whisper_output = transcription(path)
+    text = whisper_output.get("text")
+
+
+    y, sr = librosa.load(path)
+    duration = librosa.get_duration(y=y,sr=sr)
     #volume calculations
     rms = librosa.feature.rms(y=y)
     db = librosa.amplitude_to_db(rms, ref=1.0)
     average_db = float(np.mean(db))
     average_db = np.round(average_db,1)
     #wpm
-    text=transcription(path)
     word_count = len(text.split())
     wpm = word_count/(duration/60)
     wpm = np.round(wpm,1)
@@ -34,6 +35,8 @@ def all_metrics(path):
     avg_freq = float(np.round(np.nanmean(f0), 1))
     #filler words
     filler_proportion = filler.calculateFillerProportion(text)
+    #transcribability
+    transcribability = calculateTranscribability(whisper_output)
     #logging
     logger.info("METRICS SHOWN HERE")
     logger.info("duration:%s",duration)
@@ -41,6 +44,7 @@ def all_metrics(path):
     logger.info("average freq:%s",avg_freq)
     logger.info("wpm:%s",wpm)
     logger.info("filler proportion:%s",filler_proportion)
+    logger.info(f"proportion of transcribability:{transcribability}")
     return {"duration":duration,"avg_volume_dbfs":average_db,"avg_pitch_hz":avg_freq,"wpm":wpm}
 
 def graph_metrics(path):
@@ -134,3 +138,19 @@ def calc_wpm_live(session_wpm,session_lock,session_id: str, chunk_index: int, ch
             "total_seconds": float(np.round(st["total_seconds"], 3)),
             "running_wpm": st["running_wpm"],
         }
+
+# Calculate proportion of transcribable text (Whisper's confidence in the transcription)
+#
+# Input: Dict returned by model.transcribe()
+# Output: Proportion of transcribable text
+#
+def calculateTranscribability(whisperOutput):
+    segments = whisperOutput.get("segments")
+
+    totalLog = 0
+
+    for seg in segments:
+        totalLog += seg.get("avg_logprob")
+
+    return math.exp(totalLog)
+        
