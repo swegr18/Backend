@@ -56,3 +56,37 @@ class RefreshTokenUseCase:
             "access_token": access_token,
             "token_type": "bearer",
         }
+
+
+class ChangeEmailUseCase:
+    def __init__(self, user_repo: UserRepository):
+        self.user_repo = user_repo
+
+    def execute(self, user_id: str, new_email: str):
+        existing = self.user_repo.find_by_email(new_email)
+        if existing and str(existing.id) != str(user_id):
+            raise ValueError("A user with this email already exists")
+
+        user = self.user_repo.update_email(user_id=user_id, new_email=new_email)
+        if not user:
+            raise ValueError("User not found")
+        return user
+
+
+class ChangePasswordUseCase:
+    def __init__(self, user_repo: UserRepository):
+        self.user_repo = user_repo
+
+    def execute(self, user_id: str, current_password: str, new_password: str):
+        user = self.user_repo.find_by_id(user_id)
+        if not user:
+            raise ValueError("User not found")
+
+        if not verify_password(current_password, user.hashed_password):
+            raise ValueError("Current password is incorrect")
+
+        new_hashed = hash_password(new_password)
+        updated_user = self.user_repo.update_password(user_id=user_id, new_hashed_password=new_hashed)
+        if not updated_user:
+            raise ValueError("User not found")
+        return updated_user

@@ -1,8 +1,8 @@
 import uuid
 
-from application.use_cases.auth import LoginUseCase
+from application.use_cases.auth import LoginUseCase, ChangeEmailUseCase, ChangePasswordUseCase
 from domain.ports import UserRepository
-from infrastructure.security import hash_password
+from infrastructure.security import hash_password, verify_password
 
 
 class FakeUser:
@@ -39,6 +39,22 @@ class InMemoryUserRepository(UserRepository):
 
     def find_by_id(self, user_id: str):
         return self._users_by_id.get(str(user_id))
+
+    def update_email(self, user_id: str, new_email: str):
+        user = self.find_by_id(user_id)
+        if not user:
+            return None
+        self._users_by_email.pop(user.email, None)
+        user.email = new_email
+        self._users_by_email[new_email] = user
+        return user
+
+    def update_password(self, user_id: str, new_hashed_password: str):
+        user = self.find_by_id(user_id)
+        if not user:
+            return None
+        user.hashed_password = new_hashed_password
+        return user
 
 
 def _create_login_use_case_with_user(email: str, password: str) -> LoginUseCase:
@@ -95,4 +111,71 @@ def test_fr13_login_fails_for_nonexistent_user():
         assert False, "Expected ValueError for invalid credentials"
     except ValueError as exc:
         assert "Invalid email or password" in str(exc)
+
+
+def _create_user(repo: InMemoryUserRepository, email: str, password: str, username: str = "test-user"):
+    return repo.save_user(
+        {
+            "email": email,
+            "username": username,
+            "hashed_password": hash_password(password),
+        }
+    )
+
+
+def test_change_email_success():
+    repo = InMemoryUserRepository()
+    user = _create_user(repo, "old@example.com", "old-password")
+    use_case = ChangeEmailUseCase(repo)
+
+    updated = use_case.execute(user_id=user.id, new_email="new@example.com")
+
+    assert updated.email == "new@example.com"
+    assert repo.find_by_email("new@example.com") is not None
+    assert repo.find_by_email("old@example.com") is None
+
+
+def test_change_email_conflict():
+    repo = InMemoryUserRepository()
+    user = _create_user(repo, "first@example.com", "password-1")
+    _create_user(repo, "taken@example.com", "password-2", username="another")
+    use_case = ChangeEmailUseCase(repo)
+
+    try:
+        use_case.execute(user_id=user.id, new_email="taken@example.com")
+        assert False, "Expected ValueError for duplicate email"
+    except ValueError as exc:
+        assert "A user with this email already exists" in str(exc)
+
+
+def test_change_password_success():
+    repo = InMemoryUserRepository()
+    user = _create_user(repo, "user@example.com", "current-password")
+    previous_hash = user.hashed_password
+    use_case = ChangePasswordUseCase(repo)
+
+    updated = use_case.execute(
+        user_id=user.id,
+        current_password="current-password",
+        new_password="new-password",
+    )
+
+    assert updated.hashed_password != previous_hash
+    assert verify_password("new-password", updated.hashed_password)
+
+
+def test_change_password_fails_with_wrong_current_password():
+    repo = InMemoryUserRepository()
+    user = _create_user(repo, "user@example.com", "current-password")
+    use_case = ChangePasswordUseCase(repo)
+
+    try:
+        use_case.execute(
+            user_id=user.id,
+            current_password="wrong-password",
+            new_password="new-password",
+        )
+        assert False, "Expected ValueError for incorrect current password"
+    except ValueError as exc:
+        assert "Current password is incorrect" in str(exc)
 

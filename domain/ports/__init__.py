@@ -36,3 +36,11 @@ class UserRepository(ABC):
     @abstractmethod
     def find_by_id(self, user_id: str) -> Optional[any]:
         pass
+
+    @abstractmethod
+    def update_email(self, user_id: str, new_email: str) -> Optional[any]:
+        pass
+
+    @abstractmethod
+    def update_password(self, user_id: str, new_hashed_password: str) -> Optional[any]:
+        pass

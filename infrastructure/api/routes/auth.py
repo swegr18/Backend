@@ -2,7 +2,13 @@ from fastapi import APIRouter, HTTPException, Depends, status
 from pydantic import BaseModel, EmailStr
 from infrastructure.container import container
 from infrastructure.security import decode_token, get_current_user_id
-from application.use_cases.auth import RegisterUseCase, LoginUseCase, RefreshTokenUseCase
+from application.use_cases.auth import (
+    RegisterUseCase,
+    LoginUseCase,
+    RefreshTokenUseCase,
+    ChangeEmailUseCase,
+    ChangePasswordUseCase,
+)
 
 router = APIRouter()
 
@@ -22,6 +28,15 @@ class LoginRequest(BaseModel):
 
 class RefreshRequest(BaseModel):
     refresh_token: str
+
+
+class ChangeEmailRequest(BaseModel):
+    new_email: EmailStr
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
 
 
 class TokenResponse(BaseModel):
@@ -101,3 +116,44 @@ def get_me(user_id: str = Depends(get_current_user_id)):
         username=user.username,
         is_active=user.is_active,
     )
+
+
+@router.patch("/auth/email", response_model=UserResponse)
+def change_email(body: ChangeEmailRequest, user_id: str = Depends(get_current_user_id)):
+    repo = container.get("user_repository")
+    use_case = ChangeEmailUseCase(repo)
+    try:
+        user = use_case.execute(user_id=user_id, new_email=str(body.new_email))
+        return UserResponse(
+            id=str(user.id),
+            email=user.email,
+            username=user.username,
+            is_active=user.is_active,
+        )
+    except ValueError as e:
+        detail = str(e)
+        if detail == "A user with this email already exists":
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
+        if detail == "User not found":
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
+
+
+@router.patch("/auth/password", status_code=status.HTTP_204_NO_CONTENT)
+def change_password(body: ChangePasswordRequest, user_id: str = Depends(get_current_user_id)):
+    repo = container.get("user_repository")
+    use_case = ChangePasswordUseCase(repo)
+    try:
+        use_case.execute(
+            user_id=user_id,
+            current_password=body.current_password,
+            new_password=body.new_password,
+        )
+        return None
+    except ValueError as e:
+        detail = str(e)
+        if detail == "Current password is incorrect":
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
+        if detail == "User not found":
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
