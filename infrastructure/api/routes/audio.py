@@ -3,8 +3,11 @@ import subprocess
 import logging
 import threading
 from uuid import uuid4
+import csv
+import io
 
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request
+from fastapi.responses import StreamingResponse
 from pydub import AudioSegment
 from sqlmodel import Session, select
 
@@ -151,7 +154,62 @@ async def get_live_wpm(session_id: str):
     
 
 @router.get("/graphs")
-async def get_graph_data():
+async def get_graph_data(db: Session = Depends(get_session)):
     """send graph data to frontend """
-    pass
+    records = db.exec(
+        select(AudioFile).order_by(AudioFile.created_at.asc())
+    ).all()
     
+    return [
+        {
+            "id": str(r.id),
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "duration": r.duration,
+            "avg_volume_dbfs": r.avg_volume_dbfs,
+            "avg_pitch_hz": r.avg_pitch_hz,
+            "wpm": r.wpm,
+            "context_mode": r.context_mode
+        }
+        for r in records
+    ]
+    
+
+@router.get("/metrics/export")
+async def export_metrics(db: Session = Depends(get_session)):
+    """Export all historical metrics as a CSV file"""
+    records = db.exec(
+        select(AudioFile).order_by(AudioFile.created_at.asc())
+    ).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Write header
+    writer.writerow([
+        "ID", "Filename", "Content Type", "Stored Filename", 
+        "Created At", "Duration (s)", "Avg Volume (dBFS)", 
+        "Avg Pitch (Hz)", "WPM", "Context Mode"
+    ])
+    
+    # Write data rows
+    for record in records:
+        writer.writerow([
+            str(record.id),
+            record.filename,
+            record.content_type,
+            record.stored_filename,
+            record.created_at.isoformat() if record.created_at else "",
+            f"{record.duration:.2f}" if record.duration is not None else "",
+            f"{record.avg_volume_dbfs:.2f}" if record.avg_volume_dbfs is not None else "",
+            f"{record.avg_pitch_hz:.2f}" if record.avg_pitch_hz is not None else "",
+            f"{record.wpm:.2f}" if record.wpm is not None else "",
+            record.context_mode or ""
+        ])
+        
+    output.seek(0)
+    
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=metrics_export.csv"}
+    )
