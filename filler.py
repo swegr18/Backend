@@ -9,16 +9,16 @@ LEXICAL_FILLERS=["so", "like", "you know", "sort of", "kinda", "kind of", "basic
 # Output: Proportion of filler words in range [0,1]
 def calculate_filler_proportion(text):
     filler_count = 0
+    tokens = text.lower().split()
 
     for filler in VOCABLE_FILLERS:
-        filler_count += text.count(filler)
+        filler_count += tokens.count(filler.lower())
 
     # TODO: Only contextually a filler
     # Seperate as it depends on context if they are fillers, may revisit
     #for filler in LEXICAL_FILLERS:
     #    count += text.count(filler)
 
-    tokens = text.split()
     word_count = len(tokens)
 
     return filler_count / word_count
