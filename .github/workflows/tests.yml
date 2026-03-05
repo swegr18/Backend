@@ -57,7 +57,9 @@ jobs:
           done
 
       - name: Run tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}
         run: |
           source venv/bin/activate
-          pytest -q
+          python -m pytest -q
 
