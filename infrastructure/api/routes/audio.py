@@ -17,8 +17,7 @@ from metrics import calc_wpm_live, all_metrics, graph_metrics
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-CURRENT_USER_ID = None
-CURRENT_FILENAME = None
+
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
@@ -46,7 +45,7 @@ def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
     return user
-TEST_USER_ID = UUID("00000000-0000-0000-0000-000000000001")
+
 @router.post("/upload-audio")
 async def upload_and_store(request: Request, audio: UploadFile = File(...)):
     """audio receieved from react frontend--> store,convert,calculate,store"""
@@ -114,7 +113,7 @@ async def upload_and_store(request: Request, audio: UploadFile = File(...)):
 
     row = AudioFile(
         id=file_id,
-        user_id=TEST_USER_ID,
+        user_id=None,
         filename=audio.filename or "upload",
         content_type="audio/mpeg",
         stored_filename=f"{file_id}.mp3",

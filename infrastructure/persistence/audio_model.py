@@ -13,7 +13,7 @@ class AudioFile(SQLModel, table=True):
     __tablename__ = "audiofiles"
     __table_args__ = {"schema": "public"}
     id: UUID = Field(default_factory=uuid4, primary_key=True)
-    user_id: UUID = Field(foreign_key="public.users.id", index=True)
+    user_id: Optional[UUID] = Field(default=None, foreign_key="public.users.id", index=True)
     filename: str
     content_type: str
     stored_filename: str
