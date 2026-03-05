@@ -1,8 +1,3 @@
-"""Tests for audio routes (route-level / HTTP layer).
-
-Heavy external dependencies (ffmpeg, pydub, metrics, DB) are mocked so that
-these tests run fast and without system dependencies.
-"""
 import uuid
 from datetime import datetime
 from unittest.mock import patch, MagicMock
@@ -14,8 +9,6 @@ from fastapi.testclient import TestClient
 from infrastructure.api.routes import audio as audio_module
 from infrastructure.api.routes.audio import router
 
-
-# ── Fixtures ──────────────────────────────────────────────────
 
 @pytest.fixture(autouse=True)
 def _reset_module_globals():
@@ -33,10 +26,7 @@ def client():
     return TestClient(app)
 
 
-# ── Fake DB row ───────────────────────────────────────────────
-
 class FakeAudioRow:
-    """Stands in for an AudioFile SQLModel row."""
     def __init__(self, **kwargs):
         self.id = kwargs.get("id", uuid.uuid4())
         self.user_id = kwargs.get("user_id", uuid.uuid4())
@@ -53,8 +43,6 @@ class FakeAudioRow:
         self.graph_freq = kwargs.get("graph_freq", [150.0, 160.0])
 
 
-# ── POST /userdata ────────────────────────────────────────────
-
 def test_userdata_sets_globals(client):
     uid = str(uuid.uuid4())
     resp = client.post("/userdata", params={"user_id": uid, "filename": "demo.webm"})
@@ -64,8 +52,6 @@ def test_userdata_sets_globals(client):
     assert body["user_id"] == uid
     assert body["filename"] == "demo.webm"
 
-
-# ── GET /live-wpm ─────────────────────────────────────────────
 
 def test_live_wpm_session_not_found(client):
     resp = client.get("/live-wpm", params={"session_id": "nosession"})
@@ -89,10 +75,7 @@ def test_live_wpm_session_found(client):
     assert body["total_words"] == 65
 
 
-# ── GET /metrics/latest ──────────────────────────────────────
-
 def test_metrics_latest_no_data():
-    """Should return 404 when no audio files exist."""
     fake_session = MagicMock()
     fake_exec = MagicMock()
     fake_exec.first.return_value = None
@@ -110,7 +93,6 @@ def test_metrics_latest_no_data():
 
 
 def test_metrics_latest_success():
-    """Should return metrics when an audio file exists."""
     row = FakeAudioRow()
     fake_session = MagicMock()
     fake_exec = MagicMock()
@@ -133,8 +115,7 @@ def test_metrics_latest_success():
     assert body["context_mode"] == "interview"
 
 
-# ── POST /graphs ──────────────────────────────────────────────
-
+    
 def test_graphs_returns_data():
     """Should return graph data for a user."""
     uid = uuid.uuid4()
@@ -161,8 +142,6 @@ def test_graphs_returns_data():
     assert "graph_freq" in body[0]
 
 
-# ── POST /upload-audio ───────────────────────────────────────
-
 def test_upload_audio_empty(client):
     """Empty upload should return 400."""
     resp = client.post(
@@ -177,7 +156,6 @@ def test_upload_audio_empty(client):
 @patch("infrastructure.api.routes.audio.calc_wpm_live")
 @patch("infrastructure.api.routes.audio.convert_to_mp3")
 def test_upload_audio_non_final_chunk(mock_convert, mock_wpm, mock_pydub, client):
-    """Non-final chunk should succeed and return final=False."""
     mock_wpm.return_value = {"accepted": True, "running_wpm": 100.0, "chunk_words": 10,
                              "chunk_seconds": 3.0, "total_words": 10, "total_seconds": 3.0}
     mock_segment = MagicMock()
@@ -203,7 +181,6 @@ def test_upload_audio_non_final_chunk(mock_convert, mock_wpm, mock_pydub, client
 def test_upload_audio_final_chunk_success(
     mock_convert, mock_wpm, mock_pydub, mock_all_metrics, mock_graph, mock_db_session, client
 ):
-    """Final chunk with user set should compute metrics and return them."""
     audio_module.CURRENT_USER_ID = uuid.uuid4()
 
     mock_wpm.return_value = {"accepted": True, "running_wpm": 120.0, "chunk_words": 20,
@@ -236,7 +213,6 @@ def test_upload_audio_final_chunk_success(
 @patch("infrastructure.api.routes.audio.calc_wpm_live")
 @patch("infrastructure.api.routes.audio.convert_to_mp3")
 def test_upload_audio_final_no_user_set(mock_convert, mock_wpm, mock_pydub, client):
-    """Final chunk without CURRENT_USER_ID should 400."""
     mock_wpm.return_value = {"accepted": True, "running_wpm": 100.0, "chunk_words": 10,
                              "chunk_seconds": 3.0, "total_words": 10, "total_seconds": 3.0}
     mock_segment = MagicMock()
