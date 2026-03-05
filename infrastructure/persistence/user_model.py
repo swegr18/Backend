@@ -1,5 +1,5 @@
-from sqlmodel import SQLModel, Field
-from typing import Optional
+from sqlmodel import SQLModel, Field, Relationship
+from typing import List
 from uuid import UUID, uuid4
 from datetime import datetime
 
@@ -14,3 +14,4 @@ class UserTable(SQLModel, table=True):
     hashed_password: str
     is_active: bool = Field(default=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    audio_files: List["AudioFile"] = Relationship(back_populates="user")

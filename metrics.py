@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 def all_metrics(path):
 
     whisper_output = transcription(path)
-    text = whisper_output.get("text")
+    text=whisper_output.get("text")
 
     y, sr = librosa.load(path)
     duration = librosa.get_duration(y=y,sr=sr)
@@ -100,7 +100,8 @@ def calc_wpm_live(session_wpm,session_lock,session_id: str, chunk_index: int, ch
         duration_s = 0.0
 
     # transcription -> word count
-    text = transcription(chunk_mp3_path) or ""
+    text_ = transcription(chunk_mp3_path) or ""
+    text=text_.get("text")
     words = len(text.split())
 
     with session_lock:
