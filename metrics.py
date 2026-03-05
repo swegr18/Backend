@@ -19,25 +19,23 @@ def all_metrics(path):
     whisper_output = transcription(path)
     text = whisper_output.get("text")
 
-
     y, sr = librosa.load(path)
     duration = librosa.get_duration(y=y,sr=sr)
+
     #volume calculations
-    rms = librosa.feature.rms(y=y)
-    db = librosa.amplitude_to_db(rms, ref=1.0)
-    average_db = float(np.mean(db))
-    average_db = np.round(average_db,1)
-    #wpm
-    word_count = len(text.split())
-    wpm = word_count/(duration/60)
-    wpm = np.round(wpm,1)
+    average_db = calculate_average_volume(y)
+
+    wpm = calculate_wpm(text, duration)
+
     #pitch calculations
-    f0 = librosa.yin(y,fmin=80,fmax=400)
-    avg_freq = float(np.round(np.nanmean(f0), 1))
+    avg_freq = calculate_avg_pitch(y)
+
     #filler words
-    filler_proportion = filler.calculateFillerProportion(text)
-    #transcribability
-    transcribability = calculateTranscribability(whisper_output)
+    filler_proportion = filler.calculate_filler_proportion(text)
+
+    # Proportion of transcribability
+    transcribability = calculate_transcribability(whisper_output)
+
     #logging
     logger.info("METRICS SHOWN HERE")
     logger.info("duration:%s",duration)
@@ -45,7 +43,7 @@ def all_metrics(path):
     logger.info("average freq:%s",avg_freq)
     logger.info("wpm:%s",wpm)
     logger.info("filler proportion:%s",filler_proportion)
-    logger.info(f"proportion of transcribability:{transcribability}")
+    logger.info("proportion of transcribability:%s", transcribability)
     return {"duration":duration,"avg_volume_dbfs":average_db,"avg_pitch_hz":avg_freq,"wpm":wpm}
 
 def graph_metrics(path):
@@ -143,10 +141,10 @@ def calc_wpm_live(session_wpm,session_lock,session_id: str, chunk_index: int, ch
 # Calculate proportion of transcribable text (Whisper's confidence in the transcription)
 #
 # Input: Dict returned by model.transcribe()
-# Output: Proportion of transcribable text
+# Output: Float Proportion of transcribable text
 #
-def calculateTranscribability(whisperOutput):
-    segments = whisperOutput.get("segments")
+def calculate_transcribability(whisper_output):
+    segments = whisper_output.get("segments")
 
     totalLog = 0
 
@@ -155,3 +153,35 @@ def calculateTranscribability(whisperOutput):
 
     return math.exp(totalLog)
         
+# Calculate average volume in deciBels
+#
+# Input: Librosa audio time series (np.ndarray)
+# Output: Float, in deciBels
+#
+def calculate_average_volume(y):
+    rms = librosa.feature.rms(y=y)
+    db = librosa.amplitude_to_db(rms, ref=1.0)
+    average_db = float(np.mean(db))
+    return np.round(average_db,1)
+
+# Calculate words per minute
+#
+# Input: text string, duration as float
+# Output: Float, words per minute
+#
+def calculate_wpm(text, duration):
+    word_count = len(text.split())
+    wpm = word_count/(duration/60)
+    return np.round(wpm,1)
+
+# Calculate average pitch
+#
+# Input: Librosa audio time series
+# Output: Average pitch frequency 
+#
+def calculate_avg_pitch(y):
+
+    f0 = librosa.yin(y,fmin=80,fmax=400)
+    avg_freq = float(np.round(np.nanmean(f0), 1))
+
+    return avg_freq
