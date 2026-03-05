@@ -45,6 +45,7 @@ jobs:
           source venv/bin/activate
           pip install --upgrade pip
           pip install -r requirements.txt
+          pip install pytest-cov
 
       - name: Wait for Postgres to be ready
         run: |
@@ -64,5 +65,16 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}
         run: |
           source venv/bin/activate
-          python -m pytest -q
+          python -m pytest \
+          --cov=application \
+          --cov=infrastructure \
+          --cov-report=xml:coverage.xml \
+          --cov-report=term-missing \
+          --cov-fail-under=80 -q
+          
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
 

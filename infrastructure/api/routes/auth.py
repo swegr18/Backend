@@ -1,3 +1,4 @@
+"""user authentication routes"""
 from fastapi import APIRouter, HTTPException, Depends, status
 from pydantic import BaseModel, EmailStr
 from infrastructure.container import container
@@ -16,42 +17,50 @@ router = APIRouter()
 # ── Request / Response schemas ────────────────────────────────
 
 class RegisterRequest(BaseModel):
+    """ register request"""
     email: str
     username: str
     password: str
 
 
 class LoginRequest(BaseModel):
+    """ login request"""
     email: str
     password: str
 
 
 class RefreshRequest(BaseModel):
+    """ refresh request"""
     refresh_token: str
 
 
 class ChangeEmailRequest(BaseModel):
+    """ changing email request"""
     new_email: EmailStr
 
 
 class ChangePasswordRequest(BaseModel):
+    """ change password"""
     current_password: str
     new_password: str
 
 
 class TokenResponse(BaseModel):
+    """token"""
     access_token: str
     refresh_token: str = None
     token_type: str = "bearer"
 
 
 class UserResponse(BaseModel):
+    """user response"""
     id: str
     email: str
     username: str
     is_active: bool
 
     class Config:
+        """config"""
         from_attributes = True
 
 
@@ -90,6 +99,7 @@ def login(body: LoginRequest):
 
 @router.post("/auth/refresh", response_model=TokenResponse)
 def refresh(body: RefreshRequest):
+    """refreshing"""
     payload = decode_token(body.refresh_token)
     if payload.get("type") != "refresh":
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
@@ -106,6 +116,7 @@ def refresh(body: RefreshRequest):
 
 @router.get("/auth/me", response_model=UserResponse)
 def get_me(user_id: str = Depends(get_current_user_id)):
+    """return user"""
     repo = container.get("user_repository")
     user = repo.find_by_id(user_id)
     if not user:
@@ -120,6 +131,7 @@ def get_me(user_id: str = Depends(get_current_user_id)):
 
 @router.patch("/auth/email", response_model=UserResponse)
 def change_email(body: ChangeEmailRequest, user_id: str = Depends(get_current_user_id)):
+    """change user"""
     repo = container.get("user_repository")
     use_case = ChangeEmailUseCase(repo)
     try:
@@ -141,6 +153,7 @@ def change_email(body: ChangeEmailRequest, user_id: str = Depends(get_current_us
 
 @router.patch("/auth/password", status_code=status.HTTP_204_NO_CONTENT)
 def change_password(body: ChangePasswordRequest, user_id: str = Depends(get_current_user_id)):
+    """change password"""
     repo = container.get("user_repository")
     use_case = ChangePasswordUseCase(repo)
     try:

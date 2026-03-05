@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 #calculate numerical metrics
 def all_metrics(path):
-
+    """post recording metrics"""
     whisper_output = transcription(path)
     text=whisper_output.get("text")
 
@@ -145,6 +145,7 @@ def calc_wpm_live(session_wpm,session_lock,session_id: str, chunk_index: int, ch
 # Output: Float Proportion of transcribable text
 #
 def calculate_transcribability(whisper_output):
+    """transcribability metric"""
     segments = whisper_output.get("segments")
 
     totalLog = 0
@@ -160,6 +161,7 @@ def calculate_transcribability(whisper_output):
 # Output: Float, in deciBels
 #
 def calculate_average_volume(y):
+    """average volume"""
     rms = librosa.feature.rms(y=y)
     db = librosa.amplitude_to_db(rms, ref=1.0)
     average_db = float(np.mean(db))
@@ -171,6 +173,7 @@ def calculate_average_volume(y):
 # Output: Float, words per minute
 #
 def calculate_wpm(text, duration):
+    """words per minute"""
     word_count = len(text.split())
     wpm = word_count/(duration/60)
     return np.round(wpm,1)
@@ -181,7 +184,7 @@ def calculate_wpm(text, duration):
 # Output: Average pitch frequency 
 #
 def calculate_avg_pitch(y):
-
+    """average frequency"""
     f0 = librosa.yin(y,fmin=80,fmax=400)
     avg_freq = float(np.round(np.nanmean(f0), 1))
 

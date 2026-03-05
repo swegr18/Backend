@@ -5,6 +5,7 @@ from sqlmodel import SQLModel, Session
 
 from application.use_cases.auth import LoginUseCase
 from infrastructure.persistence.database import engine
+from infrastructure.persistence import audio_model
 from infrastructure.persistence.user_model import UserTable
 from infrastructure.persistence.user_repository import PostgresUserRepository
 from infrastructure.security import hash_password

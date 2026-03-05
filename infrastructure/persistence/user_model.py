@@ -5,6 +5,7 @@ from datetime import datetime
 
 
 class UserTable(SQLModel, table=True):
+    """user table class"""
     __tablename__ = "users"
     __table_args__ = {"schema": "public"}
 

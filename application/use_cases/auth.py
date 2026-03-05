@@ -1,8 +1,10 @@
+"""user authentication classes"""
 from domain.ports import UserRepository
 from infrastructure.security import hash_password, verify_password, create_access_token, create_refresh_token
 
 
 class RegisterUseCase:
+    """registering a user"""
     def __init__(self, user_repo: UserRepository):
         self.user_repo = user_repo
 
@@ -21,6 +23,7 @@ class RegisterUseCase:
 
 
 class LoginUseCase:
+    """login a user"""
     def __init__(self, user_repo: UserRepository):
         self.user_repo = user_repo
 
@@ -43,6 +46,7 @@ class LoginUseCase:
 
 
 class RefreshTokenUseCase:
+    """refresh if no user"""
     def __init__(self, user_repo: UserRepository):
         self.user_repo = user_repo
 
@@ -59,6 +63,7 @@ class RefreshTokenUseCase:
 
 
 class ChangeEmailUseCase:
+    """changing email"""
     def __init__(self, user_repo: UserRepository):
         self.user_repo = user_repo
 
@@ -74,6 +79,7 @@ class ChangeEmailUseCase:
 
 
 class ChangePasswordUseCase:
+    """changing password"""
     def __init__(self, user_repo: UserRepository):
         self.user_repo = user_repo
 

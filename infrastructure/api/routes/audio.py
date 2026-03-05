@@ -1,3 +1,4 @@
+"""audio routes"""
 import os
 import subprocess
 import logging
@@ -174,9 +175,11 @@ async def get_live_wpm(session_id: str):
 
 @router.post("/graphs")
 async def get_graph_data(
+    
     user_id: UUID,
     db: Session = Depends(get_session),
 ):
+    """send the graph data to frontend"""
     rows = db.exec(
         select(AudioFile)
         .where(AudioFile.user_id == user_id)
@@ -195,6 +198,7 @@ async def get_graph_data(
     
 @router.post("/userdata")
 async def send_user_data(user_id: UUID, filename: str):
+    """gets  data from frontend"""
     global CURRENT_USER_ID, CURRENT_FILENAME
 
     CURRENT_USER_ID = user_id

@@ -1,3 +1,4 @@
+"""transcribe text"""
 import os
 import logging
 import whisper
@@ -10,6 +11,7 @@ model = whisper.load_model("tiny")
 
 #use whisper to get text transcription
 def transcription(path):
+    """uses whisper to transcribe audio"""
     try:
         if (not os.path.exists(path)) or os.path.getsize(path) == 0:
             logger.warning(f"Audio file {path} does not exist")
