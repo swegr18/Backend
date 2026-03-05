@@ -116,7 +116,7 @@ async def upload_and_store(request: Request, audio: UploadFile = File(...)):
 
     row = AudioFile(
         id=file_id,
-        user_id=CURRENT_USER_ID,
+        user_id=TEST_USER_ID,
         filename=audio.filename or "upload",
         content_type="audio/mpeg",
         stored_filename=f"{file_id}.mp3",
@@ -197,15 +197,30 @@ async def get_graph_data(
     ]
     
 @router.post("/userdata")
-async def send_user_data(user_id: UUID, filename: str):
-    """gets  data from frontend"""
-    global CURRENT_USER_ID, CURRENT_FILENAME
+async def send_user_data(
+    user_id: UUID,
+    filename: str,
+    db: Session = Depends(get_session),
+):
+    """Receive user data from frontend and update audio row"""
 
-    CURRENT_USER_ID = user_id
-    CURRENT_FILENAME = filename
+    audio = db.exec(
+        select(AudioFile).where(AudioFile.stored_filename == filename)
+    ).first()
+
+    if not audio:
+        raise HTTPException(status_code=404, detail="Audio file not found")
+
+    
+    audio.user_id = user_id
+
+    db.add(audio)
+    db.commit()
+    db.refresh(audio)
 
     return {
         "ok": True,
+        "audio_id": str(audio.id),
         "user_id": str(user_id),
         "filename": filename
     }
