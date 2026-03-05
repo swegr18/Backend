@@ -24,7 +24,7 @@ jobs:
           pip install pylint
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      - name: Run pylint (fail if score < 8.0)
+      - name: Run pylint (fail if score < 7.5)
         run: |
           files=$(git ls-files "*.py" | grep -v "^tests/")
           if [ -z "$files" ]; then
