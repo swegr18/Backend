@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 def all_metrics(path):
 
     whisper_output = transcription(path)
-    text = whisper_output.get("text")
+    text=whisper_output.get("text")
 
 
     y, sr = librosa.load(path)
@@ -34,7 +34,7 @@ def all_metrics(path):
     f0 = librosa.yin(y,fmin=80,fmax=400)
     avg_freq = float(np.round(np.nanmean(f0), 1))
     #filler words
-    filler_proportion = filler.calculateFillerProportion(text)
+    filler_proportion = filler.calculateFillerProportion(whisper_output)
     #transcribability
     transcribability = calculateTranscribability(whisper_output)
     #logging
@@ -44,7 +44,7 @@ def all_metrics(path):
     logger.info("average freq:%s",avg_freq)
     logger.info("wpm:%s",wpm)
     logger.info("filler proportion:%s",filler_proportion)
-    logger.info(f"proportion of transcribability:{transcribability}")
+    logger.info("proportion of transcribability:%s",transcribability)
     return {"duration":duration,"avg_volume_dbfs":average_db,"avg_pitch_hz":avg_freq,"wpm":wpm}
 
 def graph_metrics(path):
@@ -101,7 +101,8 @@ def calc_wpm_live(session_wpm,session_lock,session_id: str, chunk_index: int, ch
         duration_s = 0.0
 
     # transcription -> word count
-    text = transcription(chunk_mp3_path) or ""
+    text_ = transcription(chunk_mp3_path) or ""
+    text=text_.get("text")
     words = len(text.split())
 
     with session_lock:

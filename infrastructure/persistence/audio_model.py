@@ -1,7 +1,11 @@
-from typing import Optional
-from uuid import UUID, uuid4
 from datetime import datetime
-from sqlmodel import SQLModel, Field
+from uuid import UUID, uuid4
+from typing import Optional, List
+
+from sqlmodel import SQLModel, Field, Relationship
+from sqlalchemy import Column
+from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.types import Float
 
 
 class AudioFile(SQLModel, table=True):
@@ -9,6 +13,7 @@ class AudioFile(SQLModel, table=True):
     __tablename__ = "audiofiles"
     __table_args__ = {"schema": "public"}
     id: UUID = Field(default_factory=uuid4, primary_key=True)
+    user_id: UUID = Field(foreign_key="public.users.id", index=True)
     filename: str
     content_type: str
     stored_filename: str
@@ -17,4 +22,7 @@ class AudioFile(SQLModel, table=True):
     avg_volume_dbfs: Optional[float] = Field(default=None)
     avg_pitch_hz: Optional[float] = Field(default=None)
     wpm: Optional[float] = Field(default=None)
-    context_mode: Optional[str] = Field(default=None)  # "In-Person" or "Online"
+    context_mode: Optional[str] = Field(default=None)
+    graph_volume: Optional[List[float]] = Field(default=None,sa_column=Column(ARRAY(Float)))
+    graph_freq: Optional[List[float]] = Field(default=None,sa_column=Column(ARRAY(Float)))
+    user: Optional["UserTable"] = Relationship(back_populates="audio_files")
