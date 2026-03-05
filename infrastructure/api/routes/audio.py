@@ -110,9 +110,7 @@ async def upload_and_store(request: Request, audio: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail=f"ffmpeg failed: {e.stderr[-500:]}") from e
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"final metrics failed: {e}") from e
-    
-    if CURRENT_USER_ID is None:
-        raise HTTPException(status_code=400, detail="User not set")
+
 
     row = AudioFile(
         id=file_id,
