@@ -12,6 +12,7 @@ model = whisper.load_model("tiny")
 def transcription(path):
     try:
         if (not os.path.exists(path)) or os.path.getsize(path) == 0:
+            logger.warning(f"Audio file {path} does not exist")
             return ""
     except OSError:
         return ""

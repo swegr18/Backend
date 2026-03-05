@@ -1,11 +1,13 @@
-import librosa
-import logging
-import filler
-import numpy as np
-import math
+"""metric calculations"""
 
-from transcribe import transcription
+import logging
+import numpy as np
+import librosa
 from pydub import AudioSegment
+import filler
+import math
+from transcribe import transcription
+
 
 
 logging.basicConfig(level = logging.INFO)
@@ -16,17 +18,17 @@ def all_metrics(path):
 
     whisper_output = transcription(path)
     text = whisper_output.get("text")
+
     y, sr = librosa.load(path)
     duration = librosa.get_duration(y=y,sr=sr)
 
     #volume calculations
     average_db = calculate_average_volume(y)
 
-    #wpm
     wpm = calculate_wpm(text, duration)
 
-    #pitch calculations and background noise trimming
-    avg_freq, avg_freq_second = calculate_avg_pitch(y, sr)
+    #pitch calculations
+    avg_freq = calculate_avg_pitch(y)
 
     #filler words
     filler_proportion = filler.calculate_filler_proportion(text)
@@ -36,18 +38,60 @@ def all_metrics(path):
 
     #logging
     logger.info("METRICS SHOWN HERE")
-    logger.info(f"duration:{duration}")
-    logger.info(f"average volume:{average_db}")
-    logger.info(f"average freq:{avg_freq}")
-    logger.info(f"wpm{wpm}")
-    logger.info(f"frequencies:{avg_freq_second}")
-    logger.info(f"filler proportion:{filler_proportion}")
-    logger.info(f"proportion of transcribability:{transcribability}")
-    return {"duration":duration,"avg_volume_dbfs":average_db,"avg_pitch_hz":avg_freq,"wpm":wpm}    
-    
-    
+    logger.info("duration:%s",duration)
+    logger.info("average volume:%s",average_db)
+    logger.info("average freq:%s",avg_freq)
+    logger.info("wpm:%s",wpm)
+    logger.info("filler proportion:%s",filler_proportion)
+    logger.info("proportion of transcribability:%s", transcribability)
+    return {"duration":duration,"avg_volume_dbfs":average_db,"avg_pitch_hz":avg_freq,"wpm":wpm}
+
+def graph_metrics(path):
+    """calculates arrays of data needed for graphs in stats page)"""
+    y, sr = librosa.load(path)
+    y, _ = librosa.effects.trim(y)
+    y_harmonic, _ = librosa.effects.hpss(y)
+
+    hop_length = 512
+    f0 = librosa.yin(y_harmonic, fmin=80, fmax=400, sr=sr, hop_length=hop_length)
+
+    times = librosa.frames_to_time(
+        np.arange(len(f0)), 
+        sr=sr, 
+        hop_length=hop_length
+    )
+
+    valid = ~np.isnan(f0)
+    f0 = f0[valid]
+    times = times[valid]
+
+    seconds = np.floor(times).astype(int)
+
+    avg_freq_second = [
+        float(np.mean(f0[seconds == sec]))
+        for sec in range(seconds.max() + 1)
+    ]
+
+    rms = librosa.feature.rms(y=y, hop_length=hop_length)[0]
+    db = librosa.amplitude_to_db(rms, ref=1.0)
+
+    volume_times = librosa.frames_to_time(
+        np.arange(len(db)),
+        sr=sr,
+        hop_length=hop_length
+    )
+
+    volume_seconds = np.floor(volume_times).astype(int)
+
+    avg_db_second = [
+        float(np.mean(db[volume_seconds == sec]))
+        for sec in range(volume_seconds.max() + 1)
+    ]
+
+    return {"frequencies": avg_freq_second,"volume_db": avg_db_second}
 
 def calc_wpm_live(session_wpm,session_lock,session_id: str, chunk_index: int, chunk_mp3_path: str):
+    """calculates averaged wpm for each session"""
     # chunk duration
     try:
         seg = AudioSegment.from_file(chunk_mp3_path)
@@ -81,7 +125,7 @@ def calc_wpm_live(session_wpm,session_lock,session_id: str, chunk_index: int, ch
         st["last_chunk"] = chunk_index
 
         if st["total_seconds"] > 0:
-            st["running_wpm"] = float(np.round(st["total_words"] / (st["total_seconds"] / 60.0), 2))
+            st["running_wpm"] = float(np.round(st["total_words"] / (st["total_seconds"] / 60.0), 0))
         else:
             st["running_wpm"] = None
 
@@ -132,19 +176,12 @@ def calculate_wpm(text, duration):
 
 # Calculate average pitch
 #
-# Input: Librosa time series, sample rate
-# Output: Tuple of average pitch frequency and average frequency per second?
+# Input: Librosa audio time series
+# Output: Average pitch frequency 
 #
-def calculate_avg_pitch(y, sr):
-    y, _ = librosa.effects.trim(y)
-    y_harmonic, _ = librosa.effects.hpss(y)
-    f0 = librosa.yin(y_harmonic,fmin=80,fmax=400)
-    f0 = f0[~np.isnan(f0)]
-    avg_freq = float(np.mean(f0))
-    avg_freq = np.round(avg_freq,1)
-    frames_per_second = int(len(f0) / librosa.get_duration(y=y, sr=sr))
-    chunks = np.array_split(f0, frames_per_second)
-    avg_freq_second = [np.mean(chunk) for chunk in chunks]
+def calculate_avg_pitch(y):
 
-    return avg_freq, avg_freq_second
-    
+    f0 = librosa.yin(y,fmin=80,fmax=400)
+    avg_freq = float(np.round(np.nanmean(f0), 1))
+
+    return avg_freq

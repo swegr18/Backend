@@ -148,3 +148,10 @@ async def get_live_wpm(session_id: str):
         "total_words": st["total_words"],
         "total_seconds": round(st["total_seconds"], 2),
     }
+    
+
+@router.get("/graphs")
+async def get_graph_data():
+    """send graph data to frontend """
+    pass
+    
