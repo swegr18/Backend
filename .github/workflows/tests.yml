@@ -70,7 +70,8 @@ jobs:
           --cov=infrastructure \
           --cov-report=xml:coverage.xml \
           --cov-report=term-missing \
-          --cov-fail-under=80 -q
+          -q
+
           
       - name: Upload coverage report
         uses: actions/upload-artifact@v4

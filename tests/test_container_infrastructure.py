@@ -1,6 +1,6 @@
-import infrastucture.container
+import pytest
+import infrastructure.container
 
-# Tests for DependencyContainer
 
 def test_container_get():
     """
@@ -9,25 +9,26 @@ def test_container_get():
     container = infrastructure.container.DependencyContainer()
 
     assert hasattr(container, "_dependencies")
-    with pytest.raises(KeyError):
-        assert container.get("test") == "test_contents"
-    
-    container.register("test", "test_contents")
 
+    with pytest.raises(KeyError):
+        container.get("test")
+
+    container.register("test", "test_contents")
     assert container.get("test") == "test_contents"
 
     with pytest.raises(KeyError):
-        assert container.get("nonexistant") != "test_contents"
+        container.get("nonexistant")
+
 
 def test_container_has():
     """
-    Tests DependencyContainer register and get functions
+    Tests DependencyContainer register and has functions
     """
+    container = infrastructure.container.DependencyContainer()
+
     assert hasattr(container, "_dependencies")
-    
-    container = infrastructure.container.DependencyContainer();
-    assert container.has("test") == False
+    assert container.has("test") is False
 
     container.register("test", "test_contents")
-    assert container.has("test") == True
-    assert container.has("nonexistant") == False
+    assert container.has("test") is True
+    assert container.has("nonexistant") is False

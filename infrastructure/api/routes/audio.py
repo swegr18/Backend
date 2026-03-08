@@ -59,6 +59,7 @@ async def upload_and_store(request: Request, audio: UploadFile = File(...)):
     form = await request.form()
     session_id = form.get("session_id") or "default"
     chunk_index = form.get("chunk_index") or "0"
+    
     is_final = (form.get("is_final") == "true")
     context_mode = form.get("context_mode")  
 
@@ -202,7 +203,7 @@ async def send_user_data(
     """Receive user data from frontend and update audio row"""
 
     audio = db.exec(
-        select(AudioFile).where(AudioFile.stored_filename == filename)
+        select(AudioFile).where(AudioFile.filename == filename)
     ).first()
 
     if not audio:
