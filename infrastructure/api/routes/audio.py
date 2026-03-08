@@ -186,7 +186,11 @@ async def get_graph_data(
     return [
         {
             "audio_id": a.id,
+            "name" : a.filename,
             "created_at": a.created_at,
+            "duration" : a.duration,
+            "wpm" : a.wpm,
+            "context_mode" : a.context_mode,
             "graph_volume": a.graph_volume or [],
             "graph_freq": a.graph_freq or [],
         }
@@ -211,6 +215,7 @@ async def send_user_data(
 
     
     audio.user_id = user_id
+    audio.filename = filename
 
     db.add(audio)
     db.commit()
