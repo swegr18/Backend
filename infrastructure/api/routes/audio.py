@@ -47,7 +47,7 @@ def get_current_user(
     return user
 
 @router.post("/upload-audio")
-async def upload_and_store(request: Request, audio: UploadFile = File(...)):
+async def upload_and_store(request: Request, file_id: UUID, audio: UploadFile = File(...)):
     """audio receieved from react frontend--> store,convert,calculate,store"""
     contents = await audio.read()
     if not contents:
@@ -68,7 +68,6 @@ async def upload_and_store(request: Request, audio: UploadFile = File(...)):
     combined_path = os.path.join(session_dir, "combined.webm")
 
     #  save upload to disk
-    file_id = uuid4()
     input_path = os.path.join(UPLOAD_DIR, f"{file_id}.webm")
     with open(input_path, "wb") as f:
         f.write(contents)
@@ -187,7 +186,11 @@ async def get_graph_data(
     return [
         {
             "audio_id": a.id,
+            "name" : a.filename,
             "created_at": a.created_at,
+            "duration" : a.duration,
+            "wpm" : a.wpm,
+            "context_mode" : a.context_mode,
             "graph_volume": a.graph_volume or [],
             "graph_freq": a.graph_freq or [],
         }
@@ -198,12 +201,13 @@ async def get_graph_data(
 async def send_user_data(
     user_id: UUID,
     filename: str,
+    file_id: UUID,
     db: Session = Depends(get_session),
 ):
     """Receive user data from frontend and update audio row"""
-
+    stored_name = f"{file_id}.mp3"
     audio = db.exec(
-        select(AudioFile).where(AudioFile.filename == filename)
+        select(AudioFile).where(AudioFile.stored_filename == stored_name)
     ).first()
 
     if not audio:
@@ -211,6 +215,7 @@ async def send_user_data(
 
     
     audio.user_id = user_id
+    audio.filename = filename
 
     db.add(audio)
     db.commit()
