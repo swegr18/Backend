@@ -1,12 +1,41 @@
 ## Development Guide
 
-### Running Tests
+### Setup a local dev environment
 
-- **Install dependencies** (once per environment):
+- **Create and activate a virtual environment** (recommended; do this once per machine):
+
+```bash
+# From the project root
+python -m venv venv
+
+# Mac / Linux
+source venv/bin/activate
+
+# Windows (PowerShell)
+.\venv\Scripts\Activate.ps1
+```
+
+- **Install dependencies** (inside the virtualenv):
 
 ```bash
 pip install -r requirements.txt
 ```
+
+### Code Coverage Report
+
+- **Generate a Terminal Text Report**:
+
+```bash
+PYTHONPATH=. pytest --cov=. --cov-report=term-missing
+```
+- **Generate a HTML Report (open in browser)**:
+
+```bash
+PYTHONPATH=. pytest --cov=. --cov-report=html
+```
+
+
+### Running Tests
 
 - **Start a local Postgres for testing** (Docker, Mac/Linux/Windows with Docker):
 
@@ -23,6 +52,26 @@ docker run --name backend-test-db \
 
 ```bash
 PYTHONPATH=. pytest
+```
+
+- **Run only unit / application-layer tests**:
+
+```bash
+PYTHONPATH=. pytest tests/test_auth_use_cases.py -q
+```
+
+- **Run API-level end-to-end tests**  
+  (these load the real FastAPI app in memory with `TestClient`, so you do not need to start a server or a database):
+
+```bash
+PYTHONPATH=. pytest tests/test_end_to_end.py -q
+```
+
+- **Run metrics unit tests**  
+  (these exercise the audio/transcription metrics logic in `metrics.py` with lightweight stubs):
+
+```bash
+PYTHONPATH=. pytest tests/test_metrics.py -q
 ```
 
 - **Run Postgres-backed tests as well**  
