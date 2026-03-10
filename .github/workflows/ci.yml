@@ -1,4 +1,4 @@
-name: Backend Tests
+name: CI/CD Pipeline
 
 on:
   push:
@@ -11,9 +11,34 @@ permissions:
   pull-requests: write
 
 jobs:
+  pylint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pylint
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Run pylint (fail if score < 7.5)
+        run: |
+          files=$(git ls-files "*.py" | grep -v "^tests/")
+          if [ -z "$files" ]; then
+            echo "No Python files found."
+            exit 0
+          fi
+          pylint $files --fail-under=7.5
+
   test:
     runs-on: ubuntu-latest
-
     services:
       db:
         image: postgres:16
@@ -95,3 +120,23 @@ jobs:
         with:
           name: coverage-html-report
           path: htmlcov
+
+  deploy:
+    needs: [pylint, test]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Droplet via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DROPLET_IP }}
+          username: ${{ secrets.DROPLET_USERNAME }}
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          script: |
+            cd ${{ secrets.PROJECT_PATH }}
+            
+            # Pull the latest code from GitHub
+            git pull origin main
+            
+            # Rebuild the backend image and restart the containers silently
+            docker compose up -d --build
