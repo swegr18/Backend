@@ -67,38 +67,14 @@ PYTHONPATH=. pytest
 $env:PYTHONPATH="."; pytest
 ```
 
-- **Run only unit / application-layer tests**:
+- **Run a specific test file**:
 
 ```bash
 # Mac / Linux
-PYTHONPATH=. pytest tests/test_auth_use_cases.py -q
+PYTHONPATH=. pytest tests/<test_file_name>.py -q
 
 # Windows (PowerShell)
-$env:PYTHONPATH="."; pytest tests/test_auth_use_cases.py -q
-```
-
-- **Run API-level end-to-end tests**  
-  (these load the real FastAPI app in memory with `TestClient`, so you do not need to start a server or a database):
-
-```bash
-# Mac / Linux
-PYTHONPATH=. pytest tests/test_end_to_end.py -q
-
-# Windows (PowerShell)
-$env:PYTHONPATH="."; pytest tests/test_end_to_end.py -q
-
-```
-
-- **Run metrics unit tests**  
-  (these exercise the audio/transcription metrics logic in `metrics.py` with lightweight stubs):
-
-```bash
-# Mac / Linux
-PYTHONPATH=. pytest tests/test_metrics.py -q
-
-# Windows (PowerShell)
-$env:PYTHONPATH="."; pytest tests/test_metrics.py -q
-
+$env:PYTHONPATH="."; pytest tests/<test_file_name>.py -q
 ```
 
 - **Run Postgres-backed tests as well**  
@@ -119,15 +95,5 @@ PYTHONPATH=. pytest tests/test_auth_postgres_integration.py -q
 $env:DATABASE_URL = "postgresql+psycopg://postgres:postgres@localhost:5432/audiodb"
 $env:TEST_WITH_DB = "1"
 $env:PYTHONPATH="."; pytest tests/test_auth_postgres_integration.py -q
-```
-
-- **Run a specific test file**:
-
-```bash
-# Mac / Linux
-PYTHONPATH=. pytest tests/<test_file_name>.py -q
-
-# Windows (PowerShell)
-$env:PYTHONPATH="."; pytest tests/<test_file_name>.py -q
 ```
 ```

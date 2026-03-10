@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from sqlmodel import create_engine, SQLModel
 from sqlalchemy.pool import StaticPool
 from sqlalchemy import event
+from sqlalchemy import JSON
 
 import main
 import infrastructure.persistence.database
@@ -35,6 +36,12 @@ main.engine = test_engine
 
 # Re-register the repository to use the SQLite engine
 container.register("user_repository", PostgresUserRepository(test_engine))
+
+# Patch AudioFile model to use JSON instead of ARRAY for SQLite tests
+# This allows us to keep ARRAY in production (Postgres) but run tests on SQLite
+from infrastructure.persistence.audio_model import AudioFile
+AudioFile.__table__.columns["graph_volume"].type = JSON()
+AudioFile.__table__.columns["graph_freq"].type = JSON()
 
 # Ensure tables are created (TestClient without context manager doesn't run startup events reliably)
 SQLModel.metadata.create_all(test_engine)
