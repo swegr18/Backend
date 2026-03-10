@@ -120,3 +120,14 @@ $env:DATABASE_URL = "postgresql+psycopg://postgres:postgres@localhost:5432/audio
 $env:TEST_WITH_DB = "1"
 $env:PYTHONPATH="."; pytest tests/test_auth_postgres_integration.py -q
 ```
+
+- **Run a specific test file**:
+
+```bash
+# Mac / Linux
+PYTHONPATH=. pytest tests/<test_file_name>.py -q
+
+# Windows (PowerShell)
+$env:PYTHONPATH="."; pytest tests/<test_file_name>.py -q
+```
+```

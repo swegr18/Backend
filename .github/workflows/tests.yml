@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main, master]
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -45,7 +49,6 @@ jobs:
           source venv/bin/activate
           pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest-cov
 
       - name: Wait for Postgres to be ready
         run: |
@@ -65,17 +68,30 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}
         run: |
           source venv/bin/activate
+          set -o pipefail
           python -m pytest \
           --cov=application \
           --cov=infrastructure \
           --cov-report=xml:coverage.xml \
+          --cov-report=html \
           --cov-report=term-missing \
-          -q
+          --junitxml=pytest.xml \
+          -q | tee pytest-coverage.txt
 
+      - name: Pytest coverage comment
+        uses: MishaKav/pytest-coverage-comment@main
+        with:
+          pytest-coverage-path: ./pytest-coverage.txt
+          junitxml-path: ./pytest.xml
           
-      - name: Upload coverage report
+      - name: Upload XML coverage report
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-xml
+          name: coverage-xml-report
           path: coverage.xml
 
+      - name: Upload HTML coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html-report
+          path: htmlcov
