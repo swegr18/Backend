@@ -36,6 +36,7 @@ python -m venv venv
 
 # Activate it (Windows)
 .\venv\Scripts\Activate.ps1
+# If you encounter a permission error, run: Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 
 # Activate it (Mac/Linux)
 source venv/bin/activate
