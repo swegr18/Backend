@@ -1,0 +1,29 @@
+name: Deploy to DigitalOcean Droplet
+
+on:
+  workflow_run:
+    workflows: ["Backend Tests"]
+    types:
+      - completed
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: Deploy to Droplet via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DROPLET_IP }}
+          username: ${{ secrets.DROPLET_USERNAME }}
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          script: |
+            cd ${{ secrets.PROJECT_PATH }}
+            
+            # Pull the latest code from GitHub
+            git pull origin main
+            
+            # Rebuild the backend image and restart the containers silently
+            docker compose up -d --build

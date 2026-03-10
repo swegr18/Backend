@@ -36,3 +36,31 @@ class PostgresUserRepository(UserRepository):
                 user_id = UUID(user_id)
             statement = select(UserTable).where(UserTable.id == user_id)
             return session.exec(statement).first()
+
+    def update_email(self, user_id: str, new_email: str) -> Optional[UserTable]:
+        with Session(self.engine) as session:
+            if isinstance(user_id, str):
+                user_id = UUID(user_id)
+            statement = select(UserTable).where(UserTable.id == user_id)
+            user = session.exec(statement).first()
+            if not user:
+                return None
+            user.email = new_email
+            session.add(user)
+            session.commit()
+            session.refresh(user)
+            return user
+
+    def update_password(self, user_id: str, new_hashed_password: str) -> Optional[UserTable]:
+        with Session(self.engine) as session:
+            if isinstance(user_id, str):
+                user_id = UUID(user_id)
+            statement = select(UserTable).where(UserTable.id == user_id)
+            user = session.exec(statement).first()
+            if not user:
+                return None
+            user.hashed_password = new_hashed_password
+            session.add(user)
+            session.commit()
+            session.refresh(user)
+            return user
