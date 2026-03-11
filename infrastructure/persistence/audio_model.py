@@ -23,6 +23,6 @@ class AudioFile(SQLModel, table=True):
     avg_pitch_hz: Optional[float] = Field(default=None)
     wpm: Optional[float] = Field(default=None)
     context_mode: Optional[str] = Field(default=None)
-    graph_volume: Optional[List[float]] = Field(default=None,sa_column=Column(ARRAY(Float)))
-    graph_freq: Optional[List[float]] = Field(default=None,sa_column=Column(ARRAY(Float)))
+    graph_volume: Optional[List[float]] = Field(default=None,sa_column=Column(ARRAY(Float).with_variant(JSON, "sqlite")))
+    graph_freq: Optional[List[float]] = Field(default=None,sa_column=Column(ARRAY(Float).with_variant(JSON, "sqlite")))
     user: Optional["UserTable"] = Relationship(back_populates="audio_files")
