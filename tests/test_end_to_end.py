@@ -2,15 +2,23 @@ import os
 # Set environment variable BEFORE importing main to ensure database.py picks it up
 os.environ["DATABASE_URL"] = "sqlite://"
 
+import uuid
+import tempfile
+import shutil
+import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import create_engine, SQLModel
 from sqlalchemy.pool import StaticPool
 from sqlalchemy import event
+from sqlalchemy import JSON
+from io import BytesIO
+from unittest.mock import patch, MagicMock
 
 import main
 import infrastructure.persistence.database
 from infrastructure.container import container
 from infrastructure.persistence.user_repository import PostgresUserRepository
+import infrastructure.api.routes.audio
 
 # Setup in-memory SQLite for E2E tests to avoid needing a real Postgres DB
 test_engine = create_engine(
@@ -30,11 +38,29 @@ def attach_public_schema(dbapi_connection, connection_record):
 # Patch the engine in the database module (in case it was already imported)
 infrastructure.persistence.database.engine = test_engine
 
+# Patch the engine in the audio module specifically because it imports 'engine' directly
+infrastructure.api.routes.audio.engine = test_engine
+
+# Patch the UPLOAD_DIR in audio module to use a temp dir so we don't clutter the file system
+test_upload_dir = tempfile.mkdtemp()
+infrastructure.api.routes.audio.UPLOAD_DIR = test_upload_dir
+
+@pytest.fixture(scope="module", autouse=True)
+def cleanup_test_uploads():
+    yield
+    shutil.rmtree(test_upload_dir, ignore_errors=True)
+
 # Patch the engine in main so the startup event creates tables in SQLite
 main.engine = test_engine
 
 # Re-register the repository to use the SQLite engine
 container.register("user_repository", PostgresUserRepository(test_engine))
+
+# Patch AudioFile model to use JSON instead of ARRAY for SQLite tests
+# This allows us to keep ARRAY in production (Postgres) but run tests on SQLite
+from infrastructure.persistence.audio_model import AudioFile
+AudioFile.__table__.columns["graph_volume"].type = JSON()
+AudioFile.__table__.columns["graph_freq"].type = JSON()
 
 # Ensure tables are created (TestClient without context manager doesn't run startup events reliably)
 SQLModel.metadata.create_all(test_engine)
@@ -50,6 +76,13 @@ def test_health_endpoint():
     assert response.status_code == 200
     data = response.json()
     assert data.get("status") == "healthy"
+
+
+def test_root_endpoint():
+    """Test the root endpoint."""
+    response = client.get("/api/v1/")
+    assert response.status_code == 200
+    assert response.json() == {"message": "Welcome to the API"}
 
 
 def test_auth_end_to_end_login_and_me():
@@ -96,3 +129,166 @@ def test_auth_end_to_end_login_and_me():
     me_data = me_resp.json()
     assert me_data["email"] == email
     assert me_data["username"] == username
+
+
+def test_register_conflict_e2e():
+    """Test registering a user with an email that is already taken."""
+    email = "conflict@example.com"
+    password = "password"
+    username = "conflict-user"
+
+    # First registration
+    client.post(
+        "/api/v1/auth/register",
+        json={"email": email, "username": username, "password": password},
+    )
+
+    # Second registration with same email
+    response = client.post(
+        "/api/v1/auth/register",
+        json={"email": email, "username": "another-user", "password": password},
+    )
+    assert response.status_code == 409
+    assert "A user with this email already exists" in response.json()["detail"]
+
+
+def test_login_invalid_credentials_e2e():
+    """Test logging in with an incorrect password."""
+    email = "login-fail@example.com"
+    password = "correct-password"
+    username = "login-fail-user"
+
+    # Register user
+    client.post(
+        "/api/v1/auth/register",
+        json={"email": email, "username": username, "password": password},
+    )
+
+    # Attempt login with wrong password
+    response = client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": "wrong-password"},
+    )
+    assert response.status_code == 401
+    assert "Invalid email or password" in response.json()["detail"]
+
+
+def test_auth_me_invalid_token_e2e():
+    """Test /auth/me with an invalid or malformed token."""
+    response = client.get(
+        "/api/v1/auth/me",
+        headers={"Authorization": "Bearer an-invalid-token"},
+    )
+    assert response.status_code == 401
+    assert "Invalid or expired token" in response.json()["detail"]
+
+
+def test_audio_endpoints_not_found_cases():
+    """Test audio endpoints for 404 Not Found and empty cases."""
+    # /metrics/latest with no audio files
+    response = client.get("/api/v1/metrics/latest")
+    assert response.status_code == 404
+    assert "No audio files found" in response.json()["detail"]
+
+    # /live-wpm with an unknown session_id
+    response = client.get("/api/v1/live-wpm?session_id=unknown-session")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["ready"] is False
+
+    # /userdata with an unknown file_id
+    response = client.post(
+        "/api/v1/userdata",
+        params={
+            "user_id": str(uuid.uuid4()),
+            "filename": "test.mp3",
+            "file_id": str(uuid.uuid4()),
+        },
+    )
+    assert response.status_code == 404
+    assert "Audio file not found" in response.json()["detail"]
+
+
+def test_audio_upload_flow_e2e():
+    """
+    End-to-end flow for audio:
+    - Register and log in a user.
+    - Upload a non-final audio chunk.
+    - Check live WPM stats.
+    - Upload a final audio chunk.
+    - Check the final metrics response.
+    - Check /metrics/latest.
+    - Associate the file with the user via /userdata.
+    - Check /graphs for the user's data.
+    """
+    # 1. Register and Login
+    email = "audio-user@example.com"
+    password = "audio-password"
+    username = "audio-user"
+    register_resp = client.post("/api/v1/auth/register", json={"email": email, "username": username, "password": password})
+    user_id = register_resp.json()["id"]
+
+    # 2. Create a dummy audio file (minimal valid WebM)
+    dummy_webm_content = (
+        b'\x1aE\xdf\xa3\x01\x00\x00\x00\x00\x00\x00\x18B\x86\x81\x01B\xf7\x81\x01B\xf2\x81\x01B\xf3\x81\x01B\x82'
+        b'\x84webmB\x87\x81\x02B\x85\x81\x02\x18S\x80g\x01\x00\x00\x00\x00\x00\x00\x0f\x15I\xa9f\x01\x00\x00\x00'
+        b'\x00\x00\x00\x07E\x83\x01\x00\x00\x00\x00\x00\x00\x00\x16T\xaek\x01\x00\x00\x00\x00\x00\x00\x00\xae'
+        b'\x01\x00\x00\x00\x00\x00\x00\x00d\x83\x01\x00\x00\x00\x00\x00\x00\x00\xd7\x81\x01\xe7\x81\x01s\xc5\x81'
+        b'\x01\x1fC\xb7u\x01\x00\x00\x00\x00\x00\x00\x04\xa3\x81\x01\x80\x00\x00\x00\x00'
+    )
+    audio_file = ("test.webm", BytesIO(dummy_webm_content), "audio/webm")
+    session_id = "e2e-session-123"
+    file_id = str(uuid.uuid4())
+
+    # We mock the audio processing functions to avoid needing FFmpeg installed
+    # and to avoid actual file processing errors during E2E tests.
+    with patch("infrastructure.api.routes.audio.convert_to_mp3"), \
+         patch("infrastructure.api.routes.audio.AudioSegment") as mock_segment, \
+         patch("infrastructure.api.routes.audio.calc_wpm_live") as mock_wpm, \
+         patch("infrastructure.api.routes.audio.all_metrics") as mock_all_metrics, \
+         patch("infrastructure.api.routes.audio.graph_metrics") as mock_graph:
+
+        # Setup Mocks
+        mock_wpm.return_value = {"accepted": True, "running_wpm": 100, "last_chunk": 0}
+        mock_all_metrics.return_value = {
+            "duration": 10.0, "avg_volume_dbfs": -20.0, "avg_pitch_hz": 440.0, "wpm": 150.0
+        }
+        mock_graph.return_value = {"volume_db": [1, 2], "frequencies": [100, 200]}
+        
+        # Mock AudioSegment behavior (prevent pydub from calling ffprobe)
+        mock_audio_obj = MagicMock()
+        mock_segment.from_file.return_value = mock_audio_obj
+        mock_audio_obj.__add__.return_value = mock_audio_obj
+
+        # 3. Upload a non-final chunk
+        upload_resp_1 = client.post(
+            f"/api/v1/upload-audio?file_id={file_id}",
+            files={"audio": audio_file},
+            data={"session_id": session_id, "chunk_index": "0", "is_final": "false"},
+        )
+        assert upload_resp_1.status_code == 200
+        upload_data_1 = upload_resp_1.json()
+        assert upload_data_1["ok"] is True
+        assert upload_data_1["final"] is False
+
+        # 4. Upload a final chunk
+        audio_file[1].seek(0)
+        final_file_id = str(uuid.uuid4())
+        upload_resp_2 = client.post(
+            f"/api/v1/upload-audio?file_id={final_file_id}",
+            files={"audio": audio_file},
+            data={"session_id": session_id, "chunk_index": "1", "is_final": "true"},
+        )
+        assert upload_resp_2.status_code == 200
+        upload_data_2 = upload_resp_2.json()
+        assert upload_data_2["ok"] is True
+        assert upload_data_2["final"] is True
+        assert "final_metrics" in upload_data_2
+
+    # 5. Associate file with user
+    userdata_resp = client.post(
+        "/api/v1/userdata",
+        params={"user_id": user_id, "filename": "My Test Upload", "file_id": final_file_id},
+    )
+    assert userdata_resp.status_code == 200
+    assert userdata_resp.json()["ok"] is True

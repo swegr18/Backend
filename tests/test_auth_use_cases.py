@@ -1,6 +1,6 @@
 import uuid
 
-from application.use_cases.auth import LoginUseCase, ChangeEmailUseCase, ChangePasswordUseCase
+from application.use_cases.auth import RegisterUseCase, LoginUseCase, RefreshTokenUseCase, ChangeEmailUseCase, ChangePasswordUseCase
 from domain.ports import UserRepository
 from infrastructure.security import hash_password, verify_password
 
@@ -123,6 +123,35 @@ def _create_user(repo: InMemoryUserRepository, email: str, password: str, userna
     )
 
 
+def test_register_conflict():
+    """FR1.2 negative case: registration should fail if email is taken."""
+    repo = InMemoryUserRepository()
+    use_case = RegisterUseCase(repo)
+    email = "taken@example.com"
+
+    # First registration should succeed
+    use_case.execute(email, "user1", "pass1")
+
+    # Second registration with same email should fail
+    try:
+        use_case.execute(email, "user2", "pass2")
+        assert False, "Expected ValueError for duplicate email"
+    except ValueError as exc:
+        assert "A user with this email already exists" in str(exc)
+
+
+def test_refresh_token_user_not_found():
+    """Refresh token use case should fail for a non-existent user."""
+    repo = InMemoryUserRepository()
+    use_case = RefreshTokenUseCase(repo)
+
+    try:
+        use_case.execute(user_id=str(uuid.uuid4()))
+        assert False, "Expected ValueError for user not found"
+    except ValueError as exc:
+        assert "User not found" in str(exc)
+
+
 def test_change_email_success():
     repo = InMemoryUserRepository()
     user = _create_user(repo, "old@example.com", "old-password")
@@ -146,6 +175,18 @@ def test_change_email_conflict():
         assert False, "Expected ValueError for duplicate email"
     except ValueError as exc:
         assert "A user with this email already exists" in str(exc)
+
+
+def test_change_email_user_not_found():
+    """Change email use case should fail for a non-existent user."""
+    repo = InMemoryUserRepository()
+    use_case = ChangeEmailUseCase(repo)
+
+    try:
+        use_case.execute(user_id=str(uuid.uuid4()), new_email="new@example.com")
+        assert False, "Expected ValueError for user not found"
+    except ValueError as exc:
+        assert "User not found" in str(exc)
 
 
 def test_change_password_success():
@@ -179,3 +220,14 @@ def test_change_password_fails_with_wrong_current_password():
     except ValueError as exc:
         assert "Current password is incorrect" in str(exc)
 
+
+def test_change_password_user_not_found():
+    """Change password use case should fail for a non-existent user."""
+    repo = InMemoryUserRepository()
+    use_case = ChangePasswordUseCase(repo)
+
+    try:
+        use_case.execute(user_id=str(uuid.uuid4()), current_password="any", new_password="new")
+        assert False, "Expected ValueError for user not found"
+    except ValueError as exc:
+        assert "User not found" in str(exc)
