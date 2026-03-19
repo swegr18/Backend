@@ -1,4 +1,5 @@
 import os
+import uuid
 
 import pytest
 from sqlmodel import SQLModel, Session
@@ -62,3 +63,34 @@ def test_fr13_login_existing_user_with_postgres_tables():
     assert isinstance(result["access_token"], str) and result["access_token"]
     assert isinstance(result["refresh_token"], str) and result["refresh_token"]
 
+
+@requires_postgres
+def test_update_email_postgres():
+    """Test updating email in Postgres DB"""
+    SQLModel.metadata.create_all(engine)
+    repo = PostgresUserRepository(engine)
+    
+    user = repo.save_user({"email": "pg-email1@example.com", "username": "u1", "hashed_password": "h1"})
+    
+    updated = repo.update_email(user.id, "pg-email2@example.com")
+    assert updated is not None
+    assert updated.email == "pg-email2@example.com"
+    
+    missing = repo.update_email(uuid.uuid4(), "pg-email3@example.com")
+    assert missing is None
+
+
+@requires_postgres
+def test_update_password_postgres():
+    """Test updating password in Postgres DB"""
+    SQLModel.metadata.create_all(engine)
+    repo = PostgresUserRepository(engine)
+    
+    user = repo.save_user({"email": "pg-pass1@example.com", "username": "u2", "hashed_password": "h1"})
+    
+    updated = repo.update_password(user.id, "new_hash")
+    assert updated is not None
+    assert updated.hashed_password == "new_hash"
+    
+    missing = repo.update_password(uuid.uuid4(), "another_hash")
+    assert missing is None
