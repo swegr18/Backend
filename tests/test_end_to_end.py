@@ -208,6 +208,115 @@ def test_audio_endpoints_not_found_cases():
     assert response.status_code == 404
     assert "Audio file not found" in response.json()["detail"]
 
+def test_auth_refresh_token_e2e():
+    """Test the refresh token endpoint."""
+    email = "refresh@example.com"
+    password = "password"
+    client.post("/api/v1/auth/register", json={"email": email, "username": "refresher", "password": password})
+    login_resp = client.post("/api/v1/auth/login", json={"email": email, "password": password})
+    refresh_token = login_resp.json()["refresh_token"]
+    
+    refresh_resp = client.post("/api/v1/auth/refresh", json={"refresh_token": refresh_token})
+    assert refresh_resp.status_code == 200
+    assert "access_token" in refresh_resp.json()
+
+    access_token = login_resp.json()["access_token"]
+    bad_refresh = client.post("/api/v1/auth/refresh", json={"refresh_token": access_token})
+    assert bad_refresh.status_code == 401
+
+def test_auth_change_email_e2e():
+    """Test changing email endpoint."""
+    email1 = "change1@example.com"
+    email2 = "change2@example.com"
+    password = "password"
+    
+    client.post("/api/v1/auth/register", json={"email": email1, "username": "user1", "password": password})
+    client.post("/api/v1/auth/register", json={"email": email2, "username": "user2", "password": password})
+    
+    login_resp = client.post("/api/v1/auth/login", json={"email": email1, "password": password})
+    access_token = login_resp.json()["access_token"]
+    headers = {"Authorization": f"Bearer {access_token}"}
+    
+    new_email = "new1@example.com"
+    change_resp = client.patch("/api/v1/auth/email", json={"new_email": new_email}, headers=headers)
+    assert change_resp.status_code == 200
+    assert change_resp.json()["email"] == new_email
+    
+    conflict_resp = client.patch("/api/v1/auth/email", json={"new_email": email2}, headers=headers)
+    assert conflict_resp.status_code == 409
+
+def test_auth_change_password_e2e():
+    """Test changing password endpoint."""
+    email = "passchange@example.com"
+    old_password = "old_password"
+    new_password = "new_password"
+    
+    client.post("/api/v1/auth/register", json={"email": email, "username": "user", "password": old_password})
+    login_resp = client.post("/api/v1/auth/login", json={"email": email, "password": old_password})
+    access_token = login_resp.json()["access_token"]
+    headers = {"Authorization": f"Bearer {access_token}"}
+    
+    change_resp = client.patch(
+        "/api/v1/auth/password", 
+        json={"current_password": old_password, "new_password": new_password}, 
+        headers=headers
+    )
+    assert change_resp.status_code == 204
+    
+    bad_change = client.patch(
+        "/api/v1/auth/password", 
+        json={"current_password": "wrong", "new_password": "newer"}, 
+        headers=headers
+    )
+    assert bad_change.status_code == 401
+
+def test_auth_me_wrong_token_type_e2e():
+    email = "wrong_type@example.com"
+    client.post("/api/v1/auth/register", json={"email": email, "username": "user", "password": "pwd"})
+    login_resp = client.post("/api/v1/auth/login", json={"email": email, "password": "pwd"})
+    refresh_token = login_resp.json()["refresh_token"]
+    
+    # Call /me with refresh token instead of access token to hit line 56 in security.py
+    response = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {refresh_token}"})
+    assert response.status_code == 401
+    assert "Invalid token" in response.json()["detail"]
+
+def test_auth_me_user_not_found_e2e():
+    email = "notfound_me@example.com"
+    client.post("/api/v1/auth/register", json={"email": email, "username": "user", "password": "pwd"})
+    login_resp = client.post("/api/v1/auth/login", json={"email": email, "password": "pwd"})
+    access_token = login_resp.json()["access_token"]
+    
+    # Forcefully delete user
+    from sqlmodel import Session
+    from infrastructure.persistence.user_model import UserTable
+    with Session(test_engine) as session:
+        user = session.query(UserTable).filter(UserTable.email == email).first()
+        session.delete(user)
+        session.commit()
+        
+    response = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {access_token}"})
+    assert response.status_code == 404
+    assert "User not found" in response.json()["detail"]
+
+def test_get_current_user_direct():
+    from infrastructure.api.routes.audio import get_current_user
+    from fastapi import HTTPException
+    import pytest
+    
+    with pytest.raises(HTTPException) as exc:
+        get_current_user(str(uuid.uuid4()))
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "User not found"
+
+def test_graphs_endpoint_e2e():
+    """Test the /graphs endpoint."""
+    response = client.post(
+        "/api/v1/graphs",
+        params={"user_id": str(uuid.uuid4())}
+    )
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
 
 def test_audio_upload_flow_e2e():
     """
@@ -249,7 +358,10 @@ def test_audio_upload_flow_e2e():
          patch("infrastructure.api.routes.audio.graph_metrics") as mock_graph:
 
         # Setup Mocks
-        mock_wpm.return_value = {"accepted": True, "running_wpm": 100, "last_chunk": 0}
+        def fake_calc_wpm(sw, sl, sid, ci, path):
+            sw[sid] = {"total_words": 10, "total_seconds": 10.0, "last_chunk": ci, "running_wpm": 100.0}
+            return {"accepted": True, "running_wpm": 100, "last_chunk": ci}
+        mock_wpm.side_effect = fake_calc_wpm
         mock_all_metrics.return_value = {
             "duration": 10.0,
             "avg_volume_dbfs": -20.0,
@@ -276,6 +388,11 @@ def test_audio_upload_flow_e2e():
         assert upload_data_1["ok"] is True
         assert upload_data_1["final"] is False
 
+        # Call live wpm exactly when st is ready to be returned
+        live_wpm_resp = client.get(f"/api/v1/live-wpm?session_id={session_id}")
+        assert live_wpm_resp.status_code == 200
+        assert live_wpm_resp.json()["ready"] is True
+
         # 4. Upload a final chunk
         audio_file[1].seek(0)
         final_file_id = str(uuid.uuid4())
@@ -299,3 +416,60 @@ def test_audio_upload_flow_e2e():
     )
     assert userdata_resp.status_code == 200
     assert userdata_resp.json()["ok"] is True
+
+
+def test_audio_upload_subprocess_error():
+    dummy_webm_content = b'dummy'
+    audio_file = ("test.webm", BytesIO(dummy_webm_content), "audio/webm")
+    
+    with patch("infrastructure.api.routes.audio.subprocess.run") as mock_run:
+        import subprocess
+        mock_run.side_effect = subprocess.CalledProcessError(1, ["ffmpeg"], stderr="ffmpeg error output")
+        
+        response = client.post(
+            f"/api/v1/upload-audio?file_id={str(uuid.uuid4())}",
+            files={"audio": audio_file},
+            data={"session_id": "err-session", "chunk_index": "0", "is_final": "false"}
+        )
+        assert response.status_code == 400
+        assert "ffmpeg failed: ffmpeg error output" in response.json()["detail"]
+
+def test_audio_upload_pydub_error():
+    dummy_webm_content = b'dummy'
+    audio_file = ("test.webm", BytesIO(dummy_webm_content), "audio/webm")
+    
+    with patch("infrastructure.api.routes.audio.convert_to_mp3"), \
+         patch("infrastructure.api.routes.audio.AudioSegment") as mock_segment, \
+         patch("infrastructure.api.routes.audio.calc_wpm_live", return_value={"accepted": True}):
+        
+        mock_segment.from_file.side_effect = Exception("Pydub mock error")
+        
+        response = client.post(
+            f"/api/v1/upload-audio?file_id={str(uuid.uuid4())}",
+            files={"audio": audio_file},
+            data={"session_id": "err-session-3", "chunk_index": "0", "is_final": "false"}
+        )
+        assert response.status_code == 400
+        assert "pydub combine failed: Pydub mock error" in response.json()["detail"]
+
+def test_audio_upload_final_metrics_error():
+    dummy_webm_content = b'dummy'
+    audio_file = ("test.webm", BytesIO(dummy_webm_content), "audio/webm")
+    
+    with patch("infrastructure.api.routes.audio.convert_to_mp3"), \
+         patch("infrastructure.api.routes.audio.AudioSegment") as mock_segment, \
+         patch("infrastructure.api.routes.audio.all_metrics") as mock_metrics, \
+         patch("infrastructure.api.routes.audio.calc_wpm_live", return_value={"accepted": True}):
+        mock_segment.from_file.return_value = MagicMock()
+        mock_metrics.side_effect = Exception("Custom metrics error")
+        response = client.post(
+            f"/api/v1/upload-audio?file_id={str(uuid.uuid4())}",
+            files={"audio": audio_file},
+            data={"session_id": "err-session-2", "chunk_index": "1", "is_final": "true"}
+        )
+        assert response.status_code == 400
+        assert "final metrics failed: Custom metrics error" in response.json()["detail"]
+
+def test_main_startup():
+    import main
+    main.on_startup()

@@ -1,6 +1,8 @@
 import numpy as np
 import pytest
 from unittest.mock import patch, MagicMock
+import threading
+from metrics import calc_wpm_live
 
 from metrics import all_metrics, graph_metrics, calc_wpm_live, calculate_transcribability
 
@@ -94,3 +96,28 @@ def test_calc_wpm_live(mock_audio_segment):
         result2 = calc_wpm_live(session_wpm, session_lock, session_id, 1, "chunk2.mp3")
         assert result2["accepted"] is True
         assert result2["running_wpm"] == 120.0
+
+
+@patch("metrics.transcription", return_value={"text": ""})
+def test_calc_wpm_live_out_of_order(mock_transcribe):
+    session_wpm = {}
+    session_lock = threading.Lock()
+    
+    # Test first chunk correctly
+    res1 = calc_wpm_live(session_wpm, session_lock, "sess1", 0, "nonexistent.mp3")
+    assert res1["accepted"] is True
+    
+    # Test out of order chunk (expecting 1, sending 2)
+    res2 = calc_wpm_live(session_wpm, session_lock, "sess1", 2, "nonexistent.mp3")
+    assert res2["accepted"] is False
+    assert res2["expected_chunk"] == 1
+    
+@patch("metrics.transcription", return_value={"text": ""})
+def test_calc_wpm_live_zero_seconds(mock_transcribe):
+    session_wpm = {}
+    session_lock = threading.Lock()
+    
+    # A non-existent file path will result in duration 0
+    res = calc_wpm_live(session_wpm, session_lock, "sess2", 0, "invalid_file_path.mp3")
+    assert res["accepted"] is True
+    assert res["running_wpm"] is None

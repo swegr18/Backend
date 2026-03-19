@@ -139,6 +139,15 @@ def test_register_conflict():
     except ValueError as exc:
         assert "A user with this email already exists" in str(exc)
 
+def test_refresh_token_success():
+    """Test successful generation of refresh token to cover missing line."""
+    repo = InMemoryUserRepository()
+    user = _create_user(repo, "refresh@example.com", "password")
+    use_case = RefreshTokenUseCase(repo)
+
+    result = use_case.execute(user_id=user.id)
+    assert result["token_type"] == "bearer"
+    assert "access_token" in result
 
 def test_refresh_token_user_not_found():
     """Refresh token use case should fail for a non-existent user."""
@@ -150,6 +159,23 @@ def test_refresh_token_user_not_found():
         assert False, "Expected ValueError for user not found"
     except ValueError as exc:
         assert "User not found" in str(exc)
+
+def test_change_password_update_fails():
+    """Test password update fails when db update returns None."""
+    repo = InMemoryUserRepository()
+    user = _create_user(repo, "updatefail@example.com", "password")
+    use_case = ChangePasswordUseCase(repo)
+    
+    original_update = repo.update_password
+    repo.update_password = lambda *args, **kwargs: None
+    
+    try:
+        use_case.execute(user.id, "password", "new_password")
+        assert False, "Expected ValueError"
+    except ValueError as exc:
+        assert "User not found" in str(exc)
+    finally:
+        repo.update_password = original_update
 
 
 def test_change_email_success():
