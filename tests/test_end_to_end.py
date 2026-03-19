@@ -251,7 +251,12 @@ def test_audio_upload_flow_e2e():
         # Setup Mocks
         mock_wpm.return_value = {"accepted": True, "running_wpm": 100, "last_chunk": 0}
         mock_all_metrics.return_value = {
-            "duration": 10.0, "avg_volume_dbfs": -20.0, "avg_pitch_hz": 440.0, "wpm": 150.0
+            "duration": 10.0,
+            "avg_volume_dbfs": -20.0,
+            "avg_pitch_hz": 440.0,
+            "wpm": 150.0,
+            "filler_proportion": 0.1,
+            "transcribability": 0.9,
         }
         mock_graph.return_value = {"volume_db": [1, 2], "frequencies": [100, 200]}
         
@@ -284,6 +289,8 @@ def test_audio_upload_flow_e2e():
         assert upload_data_2["ok"] is True
         assert upload_data_2["final"] is True
         assert "final_metrics" in upload_data_2
+        assert "filler_proportion" in upload_data_2["final_metrics"]
+        assert "transcribability" in upload_data_2["final_metrics"]
 
     # 5. Associate file with user
     userdata_resp = client.post(

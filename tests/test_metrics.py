@@ -40,7 +40,11 @@ def test_all_metrics(mock_transcription, mock_librosa):
     assert "avg_volume_dbfs" in metrics
     assert "avg_pitch_hz" in metrics
     assert "wpm" in metrics
+    assert "filler_proportion" in metrics
+    assert "transcribability" in metrics
     assert metrics["wpm"] == 300.0  # 5 words / 1 second * 60
+    assert metrics["filler_proportion"] == 0.0
+    assert metrics["transcribability"] == pytest.approx(0.449329, abs=1e-6)
 
 
 def test_graph_metrics(mock_librosa):

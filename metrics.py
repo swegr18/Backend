@@ -44,7 +44,14 @@ def all_metrics(path):
     logger.info("wpm:%s",wpm)
     logger.info("filler proportion:%s",filler_proportion)
     logger.info("proportion of transcribability:%s", transcribability)
-    return {"duration":duration,"avg_volume_dbfs":average_db,"avg_pitch_hz":avg_freq,"wpm":wpm}
+    return {
+        "duration": duration,
+        "avg_volume_dbfs": average_db,
+        "avg_pitch_hz": avg_freq,
+        "wpm": wpm,
+        "filler_proportion": filler_proportion,
+        "transcribability": transcribability,
+    }
 
 def graph_metrics(path):
     """calculates arrays of data needed for graphs in stats page)"""

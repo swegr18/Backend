@@ -121,6 +121,8 @@ async def upload_and_store(request: Request, file_id: UUID, audio: UploadFile = 
         avg_volume_dbfs=metrics["avg_volume_dbfs"],
         avg_pitch_hz=metrics["avg_pitch_hz"],
         wpm=metrics["wpm"],
+        filler_proportion=metrics.get("filler_proportion"),
+        transcribability=metrics.get("transcribability"),
         context_mode=context_mode,
         graph_volume=graph_data["volume_db"],
         graph_freq=graph_data["frequencies"],
@@ -149,6 +151,8 @@ async def get_metrics(db: Session = Depends(get_session)):
         raise HTTPException(status_code=404, detail="No audio files found")
     return {"duration": newest.duration, "avg_volume_dbfs": newest.avg_volume_dbfs,
             "avg_pitch_hz": newest.avg_pitch_hz, "wpm": newest.wpm,
+            "filler_proportion": newest.filler_proportion,
+            "transcribability": newest.transcribability,
             "context_mode": newest.context_mode}
 
 
@@ -190,6 +194,8 @@ async def get_graph_data(
             "created_at": a.created_at,
             "duration" : a.duration,
             "wpm" : a.wpm,
+            "filler_proportion": a.filler_proportion,
+            "transcribability": a.transcribability,
             "context_mode" : a.context_mode,
             "graph_volume": a.graph_volume or [],
             "graph_freq": a.graph_freq or [],
